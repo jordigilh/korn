@@ -18,12 +18,6 @@ func GetCommand() *cli.Command {
 		EnableShellCompletion: true,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
-				Name:        "namespace",
-				Aliases:     []string{"n"},
-				Usage:       "-namespace <target_namespace>",
-				DefaultText: "Target namespace",
-			},
-			&cli.StringFlag{
 				Name:        "application",
 				Aliases:     []string{"app"},
 				Usage:       "-application <application_name>",

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jordigilh/korn/internal/konflux"
+	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v3"
 )
 
@@ -17,12 +18,6 @@ func CreateCommand() *cli.Command {
 		Usage:                 "create releases",
 		EnableShellCompletion: true,
 		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:        "namespace",
-				Aliases:     []string{"n"},
-				Usage:       "-namespace <target_namespace>",
-				DefaultText: "Target namespace",
-			},
 			&cli.StringFlag{
 				Name:        "application",
 				Aliases:     []string{"app"},
@@ -35,27 +30,59 @@ func CreateCommand() *cli.Command {
 				Usage:       "Example: -version 0.1",
 				DefaultText: "Version",
 			},
+			&cli.StringFlag{
+				Name:    "environment",
+				Aliases: []string{"env"},
+				Usage:   "Example: -env staging",
+				Validator: func(val string) error {
+					if val != "staging" && val != "production" {
+						return fmt.Errorf("invalid value %s: only 'staging' or 'production' supported", val)
+					}
+					return nil
+				},
+				Value:       "staging",
+				DefaultText: "Captures the target environment: staging or production",
+			},
 			&cli.BoolFlag{
 				Name:        "dryrun",
 				Usage:       "Example: -dryrun ",
-				DefaultText: "Outputs the manifest to use when creating a new release",
+				Value:       false,
+				DefaultText: "Outputs the manifest to use when creating a new release. This command is incompatible with the 'wait' flag",
+			},
+			&cli.BoolFlag{
+				Name:        "wait",
+				Aliases:     []string{"w"},
+				Usage:       "Example: -w ",
+				Value:       true,
+				DefaultText: "When creating a release, this command will instruct the CLI to wait for the completion of the release pipeline and return the results. This command is incompatible with the 'dryrun' flag",
 			},
 		},
 		Description: "Creates a release or the list of components. If application or version is not provided, it will list all snapshots in the namespace",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			r, err := konflux.CreateRelease(cmd.String("namespace"), cmd.String("application"), cmd.String("version"), cmd.Bool("dryrun"))
+			m, err := konflux.GenerateReleaseManifest(cmd.String("namespace"), cmd.String("application"), cmd.String("version"), cmd.String("environment"))
 			if err != nil {
 				return err
 			}
 			if cmd.Bool("dryrun") {
-				b, err := json.Marshal(r)
+				b, err := json.Marshal(m)
 				if err != nil {
 					return err
 				}
 				fmt.Printf("%s\n", string(b))
 				return nil
 			}
-			fmt.Printf("Release created")
+			r, err := konflux.CreateRelease(*m)
+			if err != nil {
+				return err
+			}
+			logrus.Infof("Release created %s", r.Name)
+			if cmd.Bool("wait") {
+				err = konflux.WaitForReleaseComplete(*r)
+				if err != nil {
+					return err
+				}
+				fmt.Printf("Release %s/%s has completed successfully", r.Namespace, r.Name)
+			}
 			return nil
 		},
 	}
@@ -69,12 +96,6 @@ func GetCommand() *cli.Command {
 		Usage:                 "get releases",
 		EnableShellCompletion: true,
 		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:        "namespace",
-				Aliases:     []string{"n"},
-				Usage:       "-namespace <target_namespace>",
-				DefaultText: "Target namespace",
-			},
 			&cli.StringFlag{
 				Name:        "application",
 				Aliases:     []string{"app"},

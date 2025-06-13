@@ -15,13 +15,7 @@ func GetCommand() *cli.Command {
 		Aliases:               []string{"app", "apps", "applications"},
 		Usage:                 "get applications",
 		EnableShellCompletion: true,
-		Flags: []cli.Flag{&cli.StringFlag{
-			Name:        "namespace",
-			Aliases:     []string{"n"},
-			Usage:       "-namespace <target_namespace>",
-			DefaultText: "Target namespace",
-		}},
-		Description: "Retrieves the list of applications in your ",
+		Description:           "Retrieves the list of applications in your ",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			if len(cmd.Args().First()) == 0 {
 				l, err := konflux.ListApplications(cmd.String("namespace"))

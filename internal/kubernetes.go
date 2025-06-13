@@ -20,6 +20,24 @@ func GetDefaultKubeconfigPath() string {
 	return "$HOME/.kube/config"
 
 }
+
+func GetCurrentNamespace() string {
+	rules := clientcmd.NewDefaultClientConfigLoadingRules()
+	rules.ExplicitPath = GetDefaultKubeconfigPath()
+	// Load the config
+	configOverrides := &clientcmd.ConfigOverrides{}
+	kubeConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(rules, configOverrides)
+
+	// Retrieve the namespace
+	namespace, _, err := kubeConfig.Namespace()
+	if err != nil {
+		logrus.Warnf("failed to retrieve current namespace from the kubeconfig context. Defaulting to 'default' :%s", err)
+		return "default"
+	}
+
+	return namespace
+}
+
 func GetClient() (client.Client, error) {
 
 	// use the current context in kubeconfig
@@ -42,5 +60,6 @@ func GetClient() (client.Client, error) {
 		logrus.Fatalf("unable to add releaseapiv1alpha1 schema to client: %s", err)
 		return nil, err
 	}
+
 	return client, nil
 }

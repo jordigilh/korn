@@ -6,11 +6,11 @@ import (
 	"log"
 	"os"
 
+	"github.com/jordigilh/korn/cmd/application"
+	"github.com/jordigilh/korn/cmd/component"
+	"github.com/jordigilh/korn/cmd/release"
+	"github.com/jordigilh/korn/cmd/snapshot"
 	"github.com/jordigilh/korn/internal"
-	"github.com/jordigilh/korn/internal/application"
-	"github.com/jordigilh/korn/internal/component"
-	"github.com/jordigilh/korn/internal/release"
-	"github.com/jordigilh/korn/internal/snapshot"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v3"
 )
@@ -26,6 +26,13 @@ func main() {
 			&cli.StringFlag{
 				Name:  "kubeconfig",
 				Value: internal.GetDefaultKubeconfigPath(),
+			},
+			&cli.StringFlag{
+				Name:        "namespace",
+				Aliases:     []string{"n"},
+				Usage:       "-namespace <namespace>",
+				DefaultText: "Current namespace",
+				Value:       internal.GetCurrentNamespace(),
 			},
 			&cli.BoolFlag{
 				Name:    "debug",

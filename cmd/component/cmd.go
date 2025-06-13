@@ -15,12 +15,7 @@ func GetCommand() *cli.Command {
 		Aliases:               []string{"comp", "comps", "components"},
 		Usage:                 "get components",
 		EnableShellCompletion: true,
-		Flags: []cli.Flag{&cli.StringFlag{
-			Name:        "namespace",
-			Aliases:     []string{"n"},
-			Usage:       "-namespace <target_namespace>",
-			DefaultText: "Target namespace",
-		},
+		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "application",
 				Aliases:     []string{"app"},

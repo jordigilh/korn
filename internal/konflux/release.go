@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
-	"strings"
+	"time"
 
 	"github.com/blang/semver/v4"
 	"github.com/jordigilh/korn/internal"
+	"github.com/sirupsen/logrus"
 
 	applicationapiv1alpha1 "github.com/konflux-ci/application-api/api/v1alpha1"
 	releaseapiv1alpha1 "github.com/konflux-ci/release-service/api/v1alpha1"
@@ -98,14 +99,20 @@ func getBundleVersionFromSnapshot(snapshot applicationapiv1alpha1.Snapshot, vers
 		return "", err
 	}
 	imgPullSpec, err := GetComponentPullspecFromSnapshot(snapshot, bundle.Name)
+	if err != nil {
+		return "", err
+	}
 	bundleData, err := internal.GetImageData(imgPullSpec)
+	if err != nil {
+		return "", err
+	}
 	if ver, ok := bundleData.Labels["version"]; ok {
 		return ver, nil
 	}
 	return "", fmt.Errorf("label 'version' not found in bundle %s/%s", bundle.Namespace, bundle.Name)
 }
 
-func CreateRelease(namespace, application, version string, dryrun bool) (*releaseapiv1alpha1.Release, error) {
+func GenerateReleaseManifest(namespace, application, version, environment string) (*releaseapiv1alpha1.Release, error) {
 	candidate, err := ListSnapshotCandidatesForRelease(namespace, application, version)
 	if err != nil {
 		return nil, err
@@ -114,7 +121,7 @@ func CreateRelease(namespace, application, version string, dryrun bool) (*releas
 	if err != nil {
 		return nil, err
 	}
-	semv, err := semver.Parse(bundleVersion)
+	semv, err := semver.ParseTolerant(bundleVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -124,6 +131,12 @@ func CreateRelease(namespace, application, version string, dryrun bool) (*releas
 	} else {
 		rtype = bugReleaseType
 	}
+
+	rp, err := getReleasePlanForEnvWithVersion(namespace, application, environment, version)
+	if err != nil {
+		return nil, err
+	}
+
 	notes := map[string]releaseNote{
 		"releaseNotes": {
 			Type: rtype,
@@ -135,15 +148,60 @@ func CreateRelease(namespace, application, version string, dryrun bool) (*releas
 	}
 	r := releaseapiv1alpha1.Release{
 		ObjectMeta: v1.ObjectMeta{
-			GenerateName: fmt.Sprintf("%s-%s-", application, strings.ReplaceAll(version, ".", "-")),
+			GenerateName: fmt.Sprintf("%s-%s-", application, environment),
+			Namespace:    namespace,
 		},
 		Spec: releaseapiv1alpha1.ReleaseSpec{
 			Snapshot:    candidate.Name,
-			ReleasePlan: fmt.Sprintf("%s-%s", application, strings.ReplaceAll(version, ".", "-")),
+			ReleasePlan: rp.Name,
 			Data: &runtime.RawExtension{
 				Raw: bnotes,
 			},
 		},
 	}
 	return &r, nil
+}
+
+func CreateRelease(release releaseapiv1alpha1.Release) (*releaseapiv1alpha1.Release, error) {
+	kcli, err := internal.GetClient()
+	if err != nil {
+		panic(err)
+	}
+	err = kcli.Create(context.Background(), &release, &client.CreateOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return &release, nil
+}
+
+func WaitForReleaseComplete(release releaseapiv1alpha1.Release) error {
+	kcli, err := internal.GetClient()
+	start := time.Now()
+	if err != nil {
+		panic(err)
+	}
+	timer := time.NewTimer(10 * time.Second)
+	defer timer.Stop()
+	for {
+		if start.Add(60 * time.Minute).Before(time.Now()) {
+			return fmt.Errorf("timed out while waiting for release %s/%s to finish", release.Namespace, release.Name)
+		}
+		err = kcli.Get(context.Background(), types.NamespacedName{Namespace: release.Namespace, Name: release.Name}, &release, &client.GetOptions{})
+		if err != nil {
+			return err
+		}
+		for _, c := range release.Status.Conditions {
+			if c.Type == "Released" {
+				switch c.Reason {
+				case "Failed":
+					return fmt.Errorf("release %s/%s failed", release.Namespace, release.Name)
+				case "Succeeded":
+					return nil
+				case "Progressing":
+					logrus.Debugf("Release %s/%s still ongoing after %s", release.Namespace, release.Name, time.Since(start).String())
+				}
+			}
+		}
+		<-timer.C
+	}
 }

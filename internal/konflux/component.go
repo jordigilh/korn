@@ -61,21 +61,24 @@ func GetComponent(componentName, namespace string) (*applicationapiv1alpha1.Comp
 }
 
 const (
-	componentTypeLabel       = "component.type"
-	componentVersionLabel    = "component.version"
-	componentBundleTypeLabel = "bundle"
+	componentTypeLabel      = "korn.redhat.io/component-type"
+	versionLabel            = "korn.redhat.io/version"
+	releaseEnvironmentLabel = "korn.redhat.io/environment"
+
+	componentBundleType         = "bundle"
+	releaseEnvironmentStageType = "staging"
 )
 
 func GetBundleForVersion(namespace, appName, version string) (*applicationapiv1alpha1.Component, error) {
-	l, err := ListComponents(namespace, appName, client.MatchingLabels{componentTypeLabel: componentBundleTypeLabel, componentVersionLabel: fmt.Sprintf("v%s", version)})
+	l, err := ListComponents(namespace, appName, client.MatchingLabels{componentTypeLabel: componentBundleType, versionLabel: version})
 	if err != nil {
 		return nil, err
 	}
 	if len(l) == 0 {
-		return nil, fmt.Errorf("no bundle component found for application %s/%s with version %s", namespace, appName, version)
+		return nil, fmt.Errorf("no bundle component found for application %s/%s with labels %s=bundle and %s=%s?", namespace, appName, componentTypeLabel, versionLabel, version)
 	}
 	if len(l) > 1 {
-		return nil, fmt.Errorf("more than 1 bundle component found for application %s/%s with version %s", namespace, appName, version)
+		return nil, fmt.Errorf("more than 1 bundle component found for application %s/%s with version %s: %+v", namespace, appName, version, l)
 	}
 	return &l[0], nil
 }
