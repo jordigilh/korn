@@ -3,6 +3,7 @@ module github.com/jordigilh/korn
 go 1.23.6
 
 require (
+	github.com/blang/semver/v4 v4.0.0
 	github.com/containers/podman/v5 v5.5.1
 	github.com/konflux-ci/application-api v0.0.0-20250324201748-5a9670bf7679
 	github.com/konflux-ci/release-service v0.0.0-20250612135914-9e5496ca607f
@@ -27,7 +28,6 @@ require (
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/blendle/zapdriver v1.3.1 // indirect
 	github.com/census-instrumentation/opencensus-proto v0.4.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
