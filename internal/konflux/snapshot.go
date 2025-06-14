@@ -15,18 +15,37 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func ListSnapshots(namespace, applicationName, version string) ([]applicationapiv1alpha1.Snapshot, error) {
+func ListSnapshots(namespace, applicationName string) ([]applicationapiv1alpha1.Snapshot, error) {
 	kcli, err := internal.GetClient()
 	if err != nil {
 		panic(err)
 	}
-
-	bundle, err := GetBundleForVersion(namespace, applicationName, version)
+	appType, version, err := GetApplicationTypeVersion(namespace, applicationName)
 	if err != nil {
 		return nil, err
 	}
 	list := applicationapiv1alpha1.SnapshotList{}
-	err = kcli.List(context.TODO(), &list, &client.ListOptions{Namespace: namespace}, &client.MatchingLabels{"pac.test.appstudio.openshift.io/event-type": "push", "appstudio.openshift.io/component": bundle.Name})
+	var comp *applicationapiv1alpha1.Component
+	if appType == "operator" {
+		comp, err = GetBundleComponentForVersion(namespace, applicationName, version)
+		if err != nil {
+			return nil, err
+		}
+	} else if appType == "fbc" {
+		// Get the first and only component
+		comps, err := ListComponents(namespace, applicationName)
+		if err != nil {
+			return nil, err
+		}
+		if len(comps) == 0 {
+			return nil, fmt.Errorf("application %s/%s does not have any component associated", namespace, applicationName)
+		}
+		if len(comps) > 1 {
+			return nil, fmt.Errorf("application %s/%s of type FBC can only have 1 component per Konflux recommendation ", namespace, applicationName)
+		}
+		comp = &comps[0]
+	}
+	err = kcli.List(context.TODO(), &list, &client.ListOptions{Namespace: namespace}, &client.MatchingLabels{"pac.test.appstudio.openshift.io/event-type": "push", "appstudio.openshift.io/component": comp.Name})
 	if err != nil {
 		return nil, err
 	}
@@ -47,8 +66,8 @@ func ListSnapshots(namespace, applicationName, version string) ([]applicationapi
 	return list.Items, nil
 }
 
-func ListSnapshotCandidatesForRelease(namespace, applicationName, version string) (*applicationapiv1alpha1.Snapshot, error) {
-	releasesForVersion, err := ListSuccessfulReleases(namespace, applicationName, version)
+func ListSnapshotCandidatesForRelease(namespace, applicationName string) (*applicationapiv1alpha1.Snapshot, error) {
+	releasesForVersion, err := ListSuccessfulReleases(namespace, applicationName)
 	if err != nil {
 		return nil, err
 	}
@@ -57,19 +76,39 @@ func ListSnapshotCandidatesForRelease(namespace, applicationName, version string
 		// Copy the last successful snapshot as the cutoff version
 		lastSnapshot = releasesForVersion[0].Spec.Snapshot
 	}
-	list, err := ListSnapshots(namespace, applicationName, version)
+	list, err := ListSnapshots(namespace, applicationName)
 	if err != nil {
 		return nil, err
 	}
-	bundle, err := GetBundleForVersion(namespace, applicationName, version)
+	appType, version, err := GetApplicationTypeVersion(namespace, applicationName)
 	if err != nil {
 		return nil, err
+	}
+	var comp *applicationapiv1alpha1.Component
+	if appType == "operator" {
+		comp, err = GetBundleComponentForVersion(namespace, applicationName, version)
+		if err != nil {
+			return nil, err
+		}
+	} else if appType == "fbc" {
+		// Get the first and only component
+		comps, err := ListComponents(namespace, applicationName)
+		if err != nil {
+			return nil, err
+		}
+		if len(comps) == 0 {
+			return nil, fmt.Errorf("application %s/%s does not have any component associated", namespace, applicationName)
+		}
+		if len(comps) > 1 {
+			return nil, fmt.Errorf("application %s/%s of type FBC can only have 1 component per Konflux recommendation ", namespace, applicationName)
+		}
+		comp = &comps[0]
 	}
 	for _, v := range list {
 		if v.Name == lastSnapshot {
 			break
 		}
-		valid, err := validateSnapshotCandicacy(bundle.Name, version, v)
+		valid, err := validateSnapshotCandicacy(comp.Name, version, v)
 		if err != nil {
 			return nil, err
 		}
@@ -77,7 +116,7 @@ func ListSnapshotCandidatesForRelease(namespace, applicationName, version string
 			return &v, nil
 		}
 	}
-	return nil, fmt.Errorf("no new valid snapshot candidates found for bundle %s/%s with version %s after the one used for the last release %s", namespace, bundle.Name, version, lastSnapshot)
+	return nil, fmt.Errorf("no new valid snapshot candidates found for bundle %s/%s with version %s after the one used for the last release %s", namespace, comp.Name, version, lastSnapshot)
 }
 
 func hasSnapshotCompletedSuccessfully(snapshot applicationapiv1alpha1.Snapshot) bool {

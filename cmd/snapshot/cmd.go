@@ -41,14 +41,14 @@ func GetCommand() *cli.Command {
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			if len(cmd.Args().First()) == 0 {
 				if cmd.Bool("candidate") {
-					snapshot, err := konflux.ListSnapshotCandidatesForRelease(cmd.String("namespace"), cmd.String("application"), cmd.String("version"))
+					snapshot, err := konflux.ListSnapshotCandidatesForRelease(cmd.String("namespace"), cmd.String("application"))
 					if err != nil {
 						return err
 					}
 					fmt.Printf("Candidate snapshot found with name:%s and creation date: %s\n", snapshot.Name, snapshot.CreationTimestamp.Format(time.UnixDate))
 					return nil
 				}
-				l, err := konflux.ListSnapshots(cmd.String("namespace"), cmd.String("application"), cmd.String("version"))
+				l, err := konflux.ListSnapshots(cmd.String("namespace"), cmd.String("application"))
 				if err != nil {
 					return err
 				}

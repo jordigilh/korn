@@ -20,18 +20,38 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func ListReleases(namespace, applicationName, version string) ([]releaseapiv1alpha1.Release, error) {
+func ListReleases(namespace, applicationName string) ([]releaseapiv1alpha1.Release, error) {
 	kcli, err := internal.GetClient()
 	if err != nil {
 		panic(err)
 	}
-
-	bundle, err := GetBundleForVersion(namespace, applicationName, version)
+	appType, version, err := GetApplicationTypeVersion(namespace, applicationName)
 	if err != nil {
 		return nil, err
 	}
+	var comp *applicationapiv1alpha1.Component
+	if appType == "operator" {
+		comp, err = GetBundleComponentForVersion(namespace, applicationName, version)
+		if err != nil {
+			return nil, err
+		}
+	} else if appType == "fbc" {
+		// Get the first and only component
+		comps, err := ListComponents(namespace, applicationName)
+		if err != nil {
+			return nil, err
+		}
+		if len(comps) == 0 {
+			return nil, fmt.Errorf("application %s/%s does not have any component associated", namespace, applicationName)
+		}
+		if len(comps) > 1 {
+			return nil, fmt.Errorf("application %s/%s of type FBC can only have 1 component per Konflux recommendation ", namespace, applicationName)
+		}
+		comp = &comps[0]
+	}
+
 	list := releaseapiv1alpha1.ReleaseList{}
-	err = kcli.List(context.TODO(), &list, &client.ListOptions{Namespace: namespace}, &client.MatchingLabels{"appstudio.openshift.io/application": applicationName, "appstudio.openshift.io/component": bundle.Name})
+	err = kcli.List(context.TODO(), &list, &client.ListOptions{Namespace: namespace}, &client.MatchingLabels{"appstudio.openshift.io/application": applicationName, "appstudio.openshift.io/component": comp.Name})
 	if err != nil {
 		return nil, err
 	}
@@ -42,9 +62,9 @@ func ListReleases(namespace, applicationName, version string) ([]releaseapiv1alp
 	return list.Items, nil
 }
 
-func ListSuccessfulReleases(namespace, applicationName, version string) ([]releaseapiv1alpha1.Release, error) {
+func ListSuccessfulReleases(namespace, applicationName string) ([]releaseapiv1alpha1.Release, error) {
 
-	l, err := ListReleases(namespace, applicationName, version)
+	l, err := ListReleases(namespace, applicationName)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +114,7 @@ type releaseType string
 
 func getBundleVersionFromSnapshot(snapshot applicationapiv1alpha1.Snapshot, version string) (string, error) {
 
-	bundle, err := GetBundleForVersion(snapshot.Namespace, snapshot.Spec.Application, version)
+	bundle, err := GetBundleComponentForVersion(snapshot.Namespace, snapshot.Spec.Application, version)
 	if err != nil {
 		return "", err
 	}
@@ -112,14 +132,10 @@ func getBundleVersionFromSnapshot(snapshot applicationapiv1alpha1.Snapshot, vers
 	return "", fmt.Errorf("label 'version' not found in bundle %s/%s", bundle.Namespace, bundle.Name)
 }
 
-func GenerateReleaseManifest(namespace, application, version, environment string) (*releaseapiv1alpha1.Release, error) {
-	app, err := GetApplication(namespace, application)
+func GenerateReleaseManifest(namespace, application, environment string) (*releaseapiv1alpha1.Release, error) {
+	appType, version, err := GetApplicationTypeVersion(namespace, application)
 	if err != nil {
 		return nil, err
-	}
-	appType, ok := app.ObjectMeta.Labels[applicationTypeLabel]
-	if !ok {
-		return nil, fmt.Errorf("unable to determine application type: application %s/%s does not contain label %s", namespace, application, applicationTypeLabel)
 	}
 	if appType == operatorApplicationType {
 		return generateReleaseManifestForOperator(namespace, application, version, environment)
@@ -131,11 +147,12 @@ func GenerateReleaseManifest(namespace, application, version, environment string
 }
 
 func generateReleaseManifestForFBC(namespace, application, version, environment string) (*releaseapiv1alpha1.Release, error) {
-	candidate, err := ListSnapshotCandidatesForRelease(namespace, application, version)
+	candidate, err := ListSnapshotCandidatesForRelease(namespace, application)
 	if err != nil {
 		return nil, err
 	}
 	rtype := featureReleaseType
+
 	rp, err := getReleasePlanForEnvWithVersion(namespace, application, environment, version)
 	if err != nil {
 		return nil, err
@@ -167,7 +184,7 @@ func generateReleaseManifestForFBC(namespace, application, version, environment 
 }
 
 func generateReleaseManifestForOperator(namespace, application, version, environment string) (*releaseapiv1alpha1.Release, error) {
-	candidate, err := ListSnapshotCandidatesForRelease(namespace, application, version)
+	candidate, err := ListSnapshotCandidatesForRelease(namespace, application)
 	if err != nil {
 		return nil, err
 	}

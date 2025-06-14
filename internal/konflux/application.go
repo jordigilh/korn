@@ -49,3 +49,19 @@ func GetApplication(namespace, application string) (*applicationapiv1alpha1.Appl
 	return &app, nil
 
 }
+
+func GetApplicationTypeVersion(namespace, application string) (string, string, error) {
+	app, err := GetApplication(namespace, application)
+	if err != nil {
+		return "", "", err
+	}
+	appType, ok := app.ObjectMeta.Labels[applicationTypeLabel]
+	if !ok {
+		return "", "", fmt.Errorf("unable to determine application type: application %s/%s does not contain label %s", namespace, application, applicationTypeLabel)
+	}
+	version, ok := app.ObjectMeta.Labels[versionLabel]
+	if !ok {
+		return "", "", fmt.Errorf("unable to determine version: application %s/%s does not contain label %s", namespace, application, versionLabel)
+	}
+	return appType, version, nil
+}

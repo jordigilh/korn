@@ -83,7 +83,7 @@ const (
 	fbcApplicationType      = "fbc"
 )
 
-func GetBundleForVersion(namespace, appName, version string) (*applicationapiv1alpha1.Component, error) {
+func GetBundleComponentForVersion(namespace, appName, version string) (*applicationapiv1alpha1.Component, error) {
 	l, err := ListComponentsWithMatchingLabels(namespace, appName, client.MatchingLabels{componentTypeLabel: componentBundleType, versionLabel: version})
 	if err != nil {
 		return nil, err

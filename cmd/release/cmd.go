@@ -25,12 +25,6 @@ func CreateCommand() *cli.Command {
 				DefaultText: "Application where the releases are derived from",
 			},
 			&cli.StringFlag{
-				Name:        "version",
-				Aliases:     []string{"v"},
-				Usage:       "Example: -version 0.1",
-				DefaultText: "Version",
-			},
-			&cli.StringFlag{
 				Name:    "environment",
 				Aliases: []string{"env"},
 				Usage:   "Example: -env staging",
@@ -59,7 +53,7 @@ func CreateCommand() *cli.Command {
 		},
 		Description: "Creates a release or the list of components. If application or version is not provided, it will list all snapshots in the namespace",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			m, err := konflux.GenerateReleaseManifest(cmd.String("namespace"), cmd.String("application"), cmd.String("version"), cmd.String("environment"))
+			m, err := konflux.GenerateReleaseManifest(cmd.String("namespace"), cmd.String("application"), cmd.String("environment"))
 			if err != nil {
 				return err
 			}
@@ -112,9 +106,12 @@ func GetCommand() *cli.Command {
 		Description: "Retrieves a release or the list of components. If application or version is not provided, it will list all snapshots in the namespace",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			if len(cmd.Args().First()) == 0 {
-				l, err := konflux.ListReleases(cmd.String("namespace"), cmd.String("application"), cmd.String("version"))
+				l, err := konflux.ListReleases(cmd.String("namespace"), cmd.String("application"))
 				if err != nil {
 					return err
+				}
+				if len(l) == 0 {
+					fmt.Printf("No releases found for %s/%s\n", cmd.String("namespace"), cmd.String("application"))
 				}
 				var relStatus string
 				for _, v := range l {
