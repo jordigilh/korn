@@ -31,17 +31,17 @@ func ListApplications(namespace string) ([]string, error) {
 
 }
 
-func GetApplication(namespace, application string) (*applicationapiv1alpha1.Application, error) {
+func GetApplication(appName string) (*applicationapiv1alpha1.Application, error) {
 	kcli, err := internal.GetClient()
 	if err != nil {
 		return nil, err
 	}
 
 	app := applicationapiv1alpha1.Application{}
-	err = kcli.Get(context.TODO(), types.NamespacedName{Namespace: namespace, Name: application}, &app)
+	err = kcli.Get(context.TODO(), types.NamespacedName{Namespace: internal.Namespace, Name: appName}, &app)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			return nil, fmt.Errorf("application %s not found in namespace %s", namespace, application)
+			return nil, fmt.Errorf("application %s not found in namespace %s", internal.Namespace, appName)
 		}
 		return nil, err
 	}
@@ -50,18 +50,14 @@ func GetApplication(namespace, application string) (*applicationapiv1alpha1.Appl
 
 }
 
-func GetApplicationTypeVersion(namespace, application string) (string, string, error) {
-	app, err := GetApplication(namespace, application)
+func GetApplicationType() (string, error) {
+	app, err := GetApplication(ApplicationName)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 	appType, ok := app.ObjectMeta.Labels[applicationTypeLabel]
 	if !ok {
-		return "", "", fmt.Errorf("unable to determine application type: application %s/%s does not contain label %s", namespace, application, applicationTypeLabel)
+		return "", fmt.Errorf("unable to determine application type: application %s/%s does not contain label %s", internal.Namespace, ApplicationName, applicationTypeLabel)
 	}
-	version, ok := app.ObjectMeta.Labels[versionLabel]
-	if !ok {
-		return "", "", fmt.Errorf("unable to determine version: application %s/%s does not contain label %s", namespace, application, versionLabel)
-	}
-	return appType, version, nil
+	return appType, nil
 }

@@ -11,7 +11,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var Kubeconfig = GetDefaultKubeconfigPath()
+var (
+	Kubeconfig = GetDefaultKubeconfigPath()
+	Namespace  = GetCurrentNamespace()
+)
 
 func GetDefaultKubeconfigPath() string {
 	if home := homedir.HomeDir(); home != "" {

@@ -50,10 +50,23 @@ func CreateCommand() *cli.Command {
 				Value:       true,
 				DefaultText: "When creating a release, this command will instruct the CLI to wait for the completion of the release pipeline and return the results. This command is incompatible with the 'dryrun' flag",
 			},
+			&cli.StringFlag{
+				Name:        "releaseType",
+				Aliases:     []string{"rt"},
+				Value:       "RHEA",
+				Usage:       "-rt <release type>",
+				DefaultText: "Release type to use in the releaseNotes: RHEA, RHBA or RHSA. Defaults to RHEA",
+				Validator: func(val string) error {
+					if val != "RHEA" && val != "RHBA" && val != "RHSA" {
+						return fmt.Errorf("invalid release type %s: only 'RHEA', 'RHBA' or 'RHSA' are supported", val)
+					}
+					return nil
+				},
+			},
 		},
 		Description: "Creates a release or the list of components. If application or version is not provided, it will list all snapshots in the namespace",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			m, err := konflux.GenerateReleaseManifest(cmd.String("namespace"), cmd.String("application"), cmd.String("environment"))
+			m, err := konflux.GenerateReleaseManifest(cmd.String("environment"), cmd.String("releaseType"))
 			if err != nil {
 				return err
 			}
@@ -71,7 +84,7 @@ func CreateCommand() *cli.Command {
 			}
 			logrus.Infof("Release created %s", r.Name)
 			if cmd.Bool("wait") {
-				err = konflux.WaitForReleaseComplete(*r)
+				err = konflux.WaitForReleaseToComplete(*r)
 				if err != nil {
 					return err
 				}
@@ -96,17 +109,11 @@ func GetCommand() *cli.Command {
 				Usage:       "-application <application_name>",
 				DefaultText: "Application where the releases are derived from",
 			},
-			&cli.StringFlag{
-				Name:        "version",
-				Aliases:     []string{"v"},
-				Usage:       "Example: -version 0.1",
-				DefaultText: "Version",
-			},
 		},
-		Description: "Retrieves a release or the list of components. If application or version is not provided, it will list all snapshots in the namespace",
+		Description: "Retrieves a release or the list of components. If application is not provided, it will list all snapshots in the namespace",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			if len(cmd.Args().First()) == 0 {
-				l, err := konflux.ListReleases(cmd.String("namespace"), cmd.String("application"))
+				l, err := konflux.ListReleases()
 				if err != nil {
 					return err
 				}

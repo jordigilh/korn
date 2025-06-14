@@ -9,24 +9,24 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func getReleasePlanForEnvWithVersion(namespace, application, environment, version string) (*releaseapiv1alpha1.ReleasePlan, error) {
+func getReleasePlanForEnvWithVersion(environment string) (*releaseapiv1alpha1.ReleasePlan, error) {
 	l := releaseapiv1alpha1.ReleasePlanList{}
 	cli, err := internal.GetClient()
 	if err != nil {
 		return nil, err
 	}
-	labels := client.MatchingLabels{releaseEnvironmentLabel: environment, versionLabel: version}
-	err = cli.List(context.Background(), &l, &client.ListOptions{Namespace: namespace}, &labels)
+	labels := client.MatchingLabels{releaseEnvironmentLabel: environment}
+	err = cli.List(context.Background(), &l, &client.ListOptions{Namespace: internal.Namespace}, &labels)
 	if err != nil {
 		return nil, err
 	}
 	for _, v := range l.Items {
-		if v.Spec.Application == application {
+		if v.Spec.Application == ApplicationName {
 			return &v, nil
 		}
 	}
 
-	return nil, fmt.Errorf("no release plan found for application %s/%s with labels %s=%s and %s=%s", namespace, application, releaseEnvironmentLabel, environment, versionLabel, version)
+	return nil, fmt.Errorf("no release plan found for application %s/%s with labels %s=%s", internal.Namespace, ApplicationName, releaseEnvironmentLabel, environment)
 }
 
 // func getReleasePlanAdmission(namespace, application, environment, version string) (*releaseapiv1alpha1.ReleasePlanAdmission, error) {

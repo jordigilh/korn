@@ -15,37 +15,37 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func ListSnapshots(namespace, applicationName string) ([]applicationapiv1alpha1.Snapshot, error) {
+func ListSnapshots() ([]applicationapiv1alpha1.Snapshot, error) {
 	kcli, err := internal.GetClient()
 	if err != nil {
 		panic(err)
 	}
-	appType, version, err := GetApplicationTypeVersion(namespace, applicationName)
+	appType, err := GetApplicationType()
 	if err != nil {
 		return nil, err
 	}
 	list := applicationapiv1alpha1.SnapshotList{}
 	var comp *applicationapiv1alpha1.Component
 	if appType == "operator" {
-		comp, err = GetBundleComponentForVersion(namespace, applicationName, version)
+		comp, err = GetBundleComponentForVersion()
 		if err != nil {
 			return nil, err
 		}
 	} else if appType == "fbc" {
 		// Get the first and only component
-		comps, err := ListComponents(namespace, applicationName)
+		comps, err := ListComponents()
 		if err != nil {
 			return nil, err
 		}
 		if len(comps) == 0 {
-			return nil, fmt.Errorf("application %s/%s does not have any component associated", namespace, applicationName)
+			return nil, fmt.Errorf("application %s/%s does not have any component associated", internal.Namespace, ApplicationName)
 		}
 		if len(comps) > 1 {
-			return nil, fmt.Errorf("application %s/%s of type FBC can only have 1 component per Konflux recommendation ", namespace, applicationName)
+			return nil, fmt.Errorf("application %s/%s of type FBC can only have 1 component per Konflux recommendation ", internal.Namespace, ApplicationName)
 		}
 		comp = &comps[0]
 	}
-	err = kcli.List(context.TODO(), &list, &client.ListOptions{Namespace: namespace}, &client.MatchingLabels{"pac.test.appstudio.openshift.io/event-type": "push", "appstudio.openshift.io/component": comp.Name})
+	err = kcli.List(context.TODO(), &list, &client.ListOptions{Namespace: internal.Namespace}, &client.MatchingLabels{"pac.test.appstudio.openshift.io/event-type": "push", "appstudio.openshift.io/component": comp.Name})
 	if err != nil {
 		return nil, err
 	}
@@ -66,8 +66,8 @@ func ListSnapshots(namespace, applicationName string) ([]applicationapiv1alpha1.
 	return list.Items, nil
 }
 
-func ListSnapshotCandidatesForRelease(namespace, applicationName string) (*applicationapiv1alpha1.Snapshot, error) {
-	releasesForVersion, err := ListSuccessfulReleases(namespace, applicationName)
+func GetLatestSnapshotCandidateForRelease() (*applicationapiv1alpha1.Snapshot, error) {
+	releasesForVersion, err := ListSuccessfulReleases()
 	if err != nil {
 		return nil, err
 	}
@@ -76,31 +76,31 @@ func ListSnapshotCandidatesForRelease(namespace, applicationName string) (*appli
 		// Copy the last successful snapshot as the cutoff version
 		lastSnapshot = releasesForVersion[0].Spec.Snapshot
 	}
-	list, err := ListSnapshots(namespace, applicationName)
+	list, err := ListSnapshots()
 	if err != nil {
 		return nil, err
 	}
-	appType, version, err := GetApplicationTypeVersion(namespace, applicationName)
+	appType, err := GetApplicationType()
 	if err != nil {
 		return nil, err
 	}
 	var comp *applicationapiv1alpha1.Component
 	if appType == "operator" {
-		comp, err = GetBundleComponentForVersion(namespace, applicationName, version)
+		comp, err = GetBundleComponentForVersion()
 		if err != nil {
 			return nil, err
 		}
 	} else if appType == "fbc" {
 		// Get the first and only component
-		comps, err := ListComponents(namespace, applicationName)
+		comps, err := ListComponents()
 		if err != nil {
 			return nil, err
 		}
 		if len(comps) == 0 {
-			return nil, fmt.Errorf("application %s/%s does not have any component associated", namespace, applicationName)
+			return nil, fmt.Errorf("application %s/%s does not have any component associated", internal.Namespace, ApplicationName)
 		}
 		if len(comps) > 1 {
-			return nil, fmt.Errorf("application %s/%s of type FBC can only have 1 component per Konflux recommendation ", namespace, applicationName)
+			return nil, fmt.Errorf("application %s/%s of type FBC can only have 1 component per Konflux recommendation ", internal.Namespace, ApplicationName)
 		}
 		comp = &comps[0]
 	}
@@ -108,7 +108,7 @@ func ListSnapshotCandidatesForRelease(namespace, applicationName string) (*appli
 		if v.Name == lastSnapshot {
 			break
 		}
-		valid, err := validateSnapshotCandicacy(comp.Name, version, v)
+		valid, err := validateSnapshotCandicacy(comp.Name, v)
 		if err != nil {
 			return nil, err
 		}
@@ -116,7 +116,7 @@ func ListSnapshotCandidatesForRelease(namespace, applicationName string) (*appli
 			return &v, nil
 		}
 	}
-	return nil, fmt.Errorf("no new valid snapshot candidates found for bundle %s/%s with version %s after the one used for the last release %s", namespace, comp.Name, version, lastSnapshot)
+	return nil, fmt.Errorf("no new valid snapshot candidates found for bundle %s/%s after the one used for the last release %s", internal.Namespace, comp.Name, lastSnapshot)
 }
 
 func hasSnapshotCompletedSuccessfully(snapshot applicationapiv1alpha1.Snapshot) bool {
@@ -129,23 +129,20 @@ func hasSnapshotCompletedSuccessfully(snapshot applicationapiv1alpha1.Snapshot) 
 }
 
 func GetComponentPullspecFromSnapshot(snapshot applicationapiv1alpha1.Snapshot, componentName string) (string, error) {
-	specs := map[string]string{}
 	for _, c := range snapshot.Spec.Components {
-		specs[c.Name] = c.ContainerImage
+		if c.Name == componentName {
+			return c.ContainerImage, nil
+		}
 	}
-	imagePullSpec, ok := specs[componentName]
-	if !ok {
-		return "", fmt.Errorf("component reference %s in snapshot %s not found", componentName, snapshot.Name)
-	}
-	return imagePullSpec, nil
+	return "", fmt.Errorf("component reference %s in snapshot %s not found", componentName, snapshot.Name)
 }
 
-func validateSnapshotCandicacy(bundleName, version string, snapshot applicationapiv1alpha1.Snapshot) (bool, error) {
-	specs := map[string]string{}
+func validateSnapshotCandicacy(bundleName string, snapshot applicationapiv1alpha1.Snapshot) (bool, error) {
 	if !hasSnapshotCompletedSuccessfully(snapshot) {
 		logrus.Debugf("snapshot %s has not finished running yet, discarding", snapshot.Name)
 		return false, nil
 	}
+
 	bundleSpec, err := GetComponentPullspecFromSnapshot(snapshot, bundleName)
 	if err != nil {
 		return false, err
@@ -155,18 +152,30 @@ func validateSnapshotCandicacy(bundleName, version string, snapshot applicationa
 	if err != nil {
 		return false, err
 	}
-	for k, v := range specs {
-		if k == bundleName {
+	comps, err := ListComponents()
+	if err != nil {
+		return false, err
+	}
+	for _, c := range comps {
+		if c.Name == bundleName {
 			continue
 		}
-		labelSpec, ok := bundleData.Labels[k[:len(k)-len(version)-1]]
+		compLabel, ok := c.Labels[bundleReferenceLabel]
 		if !ok {
-			logrus.Infof("reference to component %s not found in bundle labels %s", k, bundleSpec)
+			return false, fmt.Errorf("label %s not found in component %s/%s", bundleReferenceLabel, snapshot.Namespace, snapshot.Spec.Application)
+		}
+		labelSpec, ok := bundleData.Labels[compLabel]
+		if !ok {
+			logrus.Infof("missing label %s for component %s in bundle container image %s", bundleReferenceLabel, c.Name, bundleSpec)
 			return false, nil
 		}
+		snapshotSpec, err := GetComponentPullspecFromSnapshot(snapshot, c.Name)
+		if err != nil {
+			return false, err
+		}
 		// masage v and labelSpec to only compare the sha256 since the host and path will probably be different
-		if labelSpec[strings.LastIndex(labelSpec, "@sha256:"):] != v[strings.LastIndex(v, "@sha256:"):] {
-			logrus.Infof("component %s pullspec mismatch in bundle %s, snapshot is not a candidate for release", k, bundleName)
+		if labelSpec[strings.LastIndex(labelSpec, "@sha256:"):] != snapshotSpec[strings.LastIndex(snapshotSpec, "@sha256:"):] {
+			logrus.Infof("component %s pullspec mismatch in bundle %s, snapshot is not a candidate for release", c.Name, bundleName)
 			return false, nil
 		}
 		componentData, err := internal.GetImageData(bundleSpec)
@@ -174,7 +183,7 @@ func validateSnapshotCandicacy(bundleName, version string, snapshot applicationa
 			return false, err
 		}
 		if componentData.Labels["version"] != bundleData.Labels["version"] {
-			logrus.Infof("component %s and bundle %s version mismatch: component has %s and bundle has %s", k, bundleSpec, componentData.Labels["version"], bundleData.Labels["version"])
+			logrus.Infof("component %s and bundle %s version mismatch: component has %s and bundle has %s", c.Name, bundleSpec, componentData.Labels["version"], bundleData.Labels["version"])
 			return false, nil
 		}
 	}

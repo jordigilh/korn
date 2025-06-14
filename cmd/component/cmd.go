@@ -21,11 +21,12 @@ func GetCommand() *cli.Command {
 				Aliases:     []string{"app"},
 				Usage:       "-application <application_name>",
 				DefaultText: "Application where the components are derived from",
+				Destination: &konflux.ApplicationName,
 			}},
 		Description: "Retrieves a component or the list of components. If application is not provided, it will list all components in the namespace ",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			if len(cmd.Args().First()) == 0 {
-				l, err := konflux.ListComponents(cmd.String("namespace"), cmd.String("application"))
+				l, err := konflux.ListComponents()
 				if err != nil {
 					return err
 				}
@@ -34,7 +35,7 @@ func GetCommand() *cli.Command {
 				}
 				return nil
 			}
-			a, err := konflux.GetComponent(cmd.Args().First(), cmd.String("application"))
+			a, err := konflux.GetComponent(cmd.Args().First())
 			if err != nil {
 				return err
 			}
