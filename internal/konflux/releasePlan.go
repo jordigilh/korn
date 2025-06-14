@@ -28,3 +28,27 @@ func getReleasePlanForEnvWithVersion(namespace, application, environment, versio
 
 	return nil, fmt.Errorf("no release plan found for application %s/%s with labels %s=%s and %s=%s", namespace, application, releaseEnvironmentLabel, environment, versionLabel, version)
 }
+
+// func getReleasePlanAdmission(namespace, application, environment, version string) (*releaseapiv1alpha1.ReleasePlanAdmission, error) {
+// 	rp, err := getReleasePlanForEnvWithVersion(namespace, application, environment, version)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	if !rp.Status.ReleasePlanAdmission.Active {
+// 		return nil, fmt.Errorf("no active Release Plan Admission available for Release Plan %s/%s", rp.Namespace, rp.Name)
+// 	}
+// 	kcli, err := internal.GetClient()
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	rpa := releaseapiv1alpha1.ReleasePlanAdmission{}
+// 	rpaNamespace, rpaName, err := cache.SplitMetaNamespaceKey(rp.Status.ReleasePlanAdmission.Name)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	err = kcli.Get(context.Background(), types.NamespacedName{Namespace: rpaNamespace, Name: rpaName}, &rpa, &client.GetOptions{})
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	return &rpa, nil
+// }

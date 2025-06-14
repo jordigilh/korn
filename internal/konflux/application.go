@@ -31,21 +31,21 @@ func ListApplications(namespace string) ([]string, error) {
 
 }
 
-func GetApplication(appName, namespace string) (string, error) {
+func GetApplication(namespace, application string) (*applicationapiv1alpha1.Application, error) {
 	kcli, err := internal.GetClient()
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	app := applicationapiv1alpha1.Application{}
-	err = kcli.Get(context.TODO(), types.NamespacedName{Namespace: "storage-scale-releng-tenant", Name: appName}, &app)
+	err = kcli.Get(context.TODO(), types.NamespacedName{Namespace: namespace, Name: application}, &app)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			return "", fmt.Errorf("application %s not found in namespace %s", appName, namespace)
+			return nil, fmt.Errorf("application %s not found in namespace %s", namespace, application)
 		}
-		return "", err
+		return nil, err
 	}
 
-	return app.Name, nil
+	return &app, nil
 
 }

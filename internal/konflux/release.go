@@ -113,10 +113,65 @@ func getBundleVersionFromSnapshot(snapshot applicationapiv1alpha1.Snapshot, vers
 }
 
 func GenerateReleaseManifest(namespace, application, version, environment string) (*releaseapiv1alpha1.Release, error) {
+	app, err := GetApplication(namespace, application)
+	if err != nil {
+		return nil, err
+	}
+	appType, ok := app.ObjectMeta.Labels[applicationTypeLabel]
+	if !ok {
+		return nil, fmt.Errorf("unable to determine application type: application %s/%s does not contain label %s", namespace, application, applicationTypeLabel)
+	}
+	if appType == operatorApplicationType {
+		return generateReleaseManifestForOperator(namespace, application, version, environment)
+	}
+	if appType == fbcApplicationType {
+		return generateReleaseManifestForFBC(namespace, application, version, environment)
+	}
+	return nil, fmt.Errorf("undefined application type %s for application %s/%s", appType, namespace, application)
+}
+
+func generateReleaseManifestForFBC(namespace, application, version, environment string) (*releaseapiv1alpha1.Release, error) {
 	candidate, err := ListSnapshotCandidatesForRelease(namespace, application, version)
 	if err != nil {
 		return nil, err
 	}
+	rtype := featureReleaseType
+	rp, err := getReleasePlanForEnvWithVersion(namespace, application, environment, version)
+	if err != nil {
+		return nil, err
+	}
+
+	notes := map[string]releaseNote{
+		"releaseNotes": {
+			Type: rtype,
+		},
+	}
+	bnotes, err := json.Marshal(notes)
+	if err != nil {
+		return nil, err
+	}
+	r := releaseapiv1alpha1.Release{
+		ObjectMeta: v1.ObjectMeta{
+			GenerateName: fmt.Sprintf("%s-%s-", application, environment),
+			Namespace:    namespace,
+		},
+		Spec: releaseapiv1alpha1.ReleaseSpec{
+			Snapshot:    candidate.Name,
+			ReleasePlan: rp.Name,
+			Data: &runtime.RawExtension{
+				Raw: bnotes,
+			},
+		},
+	}
+	return &r, nil
+}
+
+func generateReleaseManifestForOperator(namespace, application, version, environment string) (*releaseapiv1alpha1.Release, error) {
+	candidate, err := ListSnapshotCandidatesForRelease(namespace, application, version)
+	if err != nil {
+		return nil, err
+	}
+	rtype := featureReleaseType
 	bundleVersion, err := getBundleVersionFromSnapshot(*candidate, version)
 	if err != nil {
 		return nil, err
@@ -125,13 +180,9 @@ func GenerateReleaseManifest(namespace, application, version, environment string
 	if err != nil {
 		return nil, err
 	}
-	var rtype releaseType
-	if semv.Patch == 0 {
-		rtype = featureReleaseType
-	} else {
+	if semv.Patch != 0 {
 		rtype = bugReleaseType
 	}
-
 	rp, err := getReleasePlanForEnvWithVersion(namespace, application, environment, version)
 	if err != nil {
 		return nil, err

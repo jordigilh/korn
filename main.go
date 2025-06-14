@@ -22,17 +22,21 @@ func main() {
 	})
 	logrus.SetOutput(os.Stdout)
 	cmd := &cli.Command{
+		Name:                  "Konflux Operator Release applicatioN",
+		Usage:                 "",
+		DefaultCommand:        "korn -h",
+		EnableShellCompletion: true,
+		Description:           "korn is an opinionated application that is designed to simplify the release of an operator in Konflux by extracting the arduous tasks that are necessary to ensure the success of a release. The tool requires the konflux manifests that represent the construct of the operator to be labeled accordingly so that the CLI can navigate through its structures",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:  "kubeconfig",
 				Value: internal.GetDefaultKubeconfigPath(),
 			},
 			&cli.StringFlag{
-				Name:        "namespace",
-				Aliases:     []string{"n"},
-				Usage:       "-namespace <namespace>",
-				DefaultText: "Current namespace",
-				Value:       internal.GetCurrentNamespace(),
+				Name:    "namespace",
+				Aliases: []string{"n"},
+				Usage:   "-namespace <namespace>",
+				Value:   internal.GetCurrentNamespace(),
 			},
 			&cli.BoolFlag{
 				Name:    "debug",

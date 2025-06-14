@@ -25,11 +25,13 @@ func GetCommand() *cli.Command {
 		Description: "Retrieves a component or the list of components. If application is not provided, it will list all components in the namespace ",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			if len(cmd.Args().First()) == 0 {
-				l, err := konflux.ListComponents(cmd.String("namespace"), cmd.String("application"), nil)
+				l, err := konflux.ListComponents(cmd.String("namespace"), cmd.String("application"))
 				if err != nil {
 					return err
 				}
-				fmt.Printf("%+v", l)
+				for _, c := range l {
+					fmt.Printf("%s\n", c.Name)
+				}
 				return nil
 			}
 			a, err := konflux.GetComponent(cmd.Args().First(), cmd.String("application"))

@@ -26,7 +26,11 @@ func ListComponentWithlabels(namespace, applicationName string, labels client.Ma
 
 }
 
-func ListComponents(namespace, applicationName string, labels client.MatchingLabels) ([]applicationapiv1alpha1.Component, error) {
+func ListComponents(namespace, applicationName string) ([]applicationapiv1alpha1.Component, error) {
+	return ListComponentsWithMatchingLabels(namespace, applicationName, nil)
+}
+
+func ListComponentsWithMatchingLabels(namespace, applicationName string, labels client.MatchingLabels) ([]applicationapiv1alpha1.Component, error) {
 	kcli, err := internal.GetClient()
 	if err != nil {
 		panic(err)
@@ -37,7 +41,13 @@ func ListComponents(namespace, applicationName string, labels client.MatchingLab
 	if err != nil {
 		return nil, err
 	}
-	return list.Items, nil
+	ret := []applicationapiv1alpha1.Component{}
+	for _, c := range list.Items {
+		if c.Spec.Application == applicationName {
+			ret = append(ret, c)
+		}
+	}
+	return ret, nil
 
 }
 
@@ -61,16 +71,20 @@ func GetComponent(componentName, namespace string) (*applicationapiv1alpha1.Comp
 }
 
 const (
-	componentTypeLabel      = "korn.redhat.io/component-type"
+	componentTypeLabel      = "korn.redhat.io/component"
+	applicationTypeLabel    = "korn.redhat.io/application"
 	versionLabel            = "korn.redhat.io/version"
 	releaseEnvironmentLabel = "korn.redhat.io/environment"
 
 	componentBundleType         = "bundle"
 	releaseEnvironmentStageType = "staging"
+
+	operatorApplicationType = "operator"
+	fbcApplicationType      = "fbc"
 )
 
 func GetBundleForVersion(namespace, appName, version string) (*applicationapiv1alpha1.Component, error) {
-	l, err := ListComponents(namespace, appName, client.MatchingLabels{componentTypeLabel: componentBundleType, versionLabel: version})
+	l, err := ListComponentsWithMatchingLabels(namespace, appName, client.MatchingLabels{componentTypeLabel: componentBundleType, versionLabel: version})
 	if err != nil {
 		return nil, err
 	}

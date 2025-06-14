@@ -25,11 +25,11 @@ func GetCommand() *cli.Command {
 				fmt.Printf("%+v", l)
 				return nil
 			}
-			a, err := konflux.GetApplication(cmd.Args().First(), cmd.String("namespace"))
+			a, err := konflux.GetApplication(cmd.String("namespace"), cmd.Args().First())
 			if err != nil {
 				return err
 			}
-			fmt.Printf("%+v", a)
+			fmt.Printf("%+v", a.Name)
 			return nil
 		},
 	}
