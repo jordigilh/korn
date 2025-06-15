@@ -51,14 +51,14 @@ func ListComponentsWithMatchingLabels(labels client.MatchingLabels) ([]applicati
 
 }
 
-func GetComponent(compName string) (*applicationapiv1alpha1.Component, error) {
+func GetComponent() (*applicationapiv1alpha1.Component, error) {
 	kcli, err := internal.GetClient()
 	if err != nil {
 		panic(err)
 	}
 
 	component := applicationapiv1alpha1.Component{}
-	err = kcli.Get(context.TODO(), types.NamespacedName{Namespace: internal.Namespace, Name: compName}, &component)
+	err = kcli.Get(context.TODO(), types.NamespacedName{Namespace: internal.Namespace, Name: ComponentName}, &component)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return nil, fmt.Errorf("component %s not found in namespace %s", ComponentName, internal.Namespace)

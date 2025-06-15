@@ -11,21 +11,24 @@ import (
 func GetCommand() *cli.Command {
 
 	return &cli.Command{
-		Name:                  "application",
-		Aliases:               []string{"app", "apps", "applications"},
-		Usage:                 "get applications",
-		EnableShellCompletion: true,
-		Description:           "Retrieves the list of applications in your ",
+		Name:        "application",
+		Aliases:     []string{"app", "apps", "applications"},
+		Usage:       "get applications",
+		Description: "Retrieves the list of applications in your ",
+		Arguments: []cli.Argument{&cli.StringArg{
+			Name:        "application",
+			Destination: &konflux.ApplicationName,
+		}},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			if len(cmd.Args().First()) == 0 {
-				l, err := konflux.ListApplications(cmd.String("namespace"))
+				l, err := konflux.ListApplications()
 				if err != nil {
 					return err
 				}
 				fmt.Printf("%+v", l)
 				return nil
 			}
-			a, err := konflux.GetApplication(cmd.Args().First())
+			a, err := konflux.GetApplication()
 			if err != nil {
 				return err
 			}

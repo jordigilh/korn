@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jordigilh/korn/internal"
 	"github.com/jordigilh/korn/internal/konflux"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v3"
@@ -13,16 +14,20 @@ import (
 
 func CreateCommand() *cli.Command {
 	return &cli.Command{
-		Name:                  "release",
-		Aliases:               []string{"releases"},
-		Usage:                 "create releases",
-		EnableShellCompletion: true,
+		Name:    "release",
+		Aliases: []string{"releases"},
+		Usage:   "create releases",
+		Arguments: []cli.Argument{&cli.StringArg{
+			Name:        "release",
+			Destination: &konflux.ReleaseName,
+		}},
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "application",
 				Aliases:     []string{"app"},
 				Usage:       "-application <application_name>",
 				DefaultText: "Application where the releases are derived from",
+				Destination: &konflux.ApplicationName,
 			},
 			&cli.StringFlag{
 				Name:    "environment",
@@ -36,6 +41,13 @@ func CreateCommand() *cli.Command {
 				},
 				Value:       "staging",
 				DefaultText: "Captures the target environment: staging or production",
+				Destination: &konflux.EnvironmentName,
+			},
+			&cli.StringFlag{
+				Name:        "snapshot",
+				Usage:       "-snapshot <application_name>",
+				DefaultText: "Use this snapshot for the release instead of the latest candidate",
+				Destination: &konflux.SnapshotName,
 			},
 			&cli.BoolFlag{
 				Name:        "dryrun",
@@ -50,6 +62,14 @@ func CreateCommand() *cli.Command {
 				Value:       true,
 				DefaultText: "When creating a release, this command will instruct the CLI to wait for the completion of the release pipeline and return the results. This command is incompatible with the 'dryrun' flag",
 			},
+			&cli.BoolFlag{
+				Name:        "force",
+				Aliases:     []string{"f"},
+				Usage:       "Example: -f ",
+				Value:       true,
+				DefaultText: "Force the creation of the release with the last candidate, even if the candidate has been used in a previous release. Useful when retrying for a failed release.",
+				Destination: &konflux.ForceRelease,
+			},
 			&cli.StringFlag{
 				Name:        "releaseType",
 				Aliases:     []string{"rt"},
@@ -62,11 +82,12 @@ func CreateCommand() *cli.Command {
 					}
 					return nil
 				},
+				Destination: &konflux.ReleaseType,
 			},
 		},
 		Description: "Creates a release or the list of components. If application or version is not provided, it will list all snapshots in the namespace",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			m, err := konflux.GenerateReleaseManifest(cmd.String("environment"), cmd.String("releaseType"))
+			m, err := konflux.GenerateReleaseManifest()
 			if err != nil {
 				return err
 			}
@@ -98,16 +119,20 @@ func CreateCommand() *cli.Command {
 func GetCommand() *cli.Command {
 
 	return &cli.Command{
-		Name:                  "release",
-		Aliases:               []string{"releases"},
-		Usage:                 "get releases",
-		EnableShellCompletion: true,
+		Name:    "release",
+		Aliases: []string{"releases"},
+		Usage:   "get releases",
+		Arguments: []cli.Argument{&cli.StringArg{
+			Name:        "release",
+			Destination: &konflux.ReleaseName,
+		}},
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "application",
 				Aliases:     []string{"app"},
 				Usage:       "-application <application_name>",
 				DefaultText: "Application where the releases are derived from",
+				Destination: &konflux.ApplicationName,
 			},
 		},
 		Description: "Retrieves a release or the list of components. If application is not provided, it will list all snapshots in the namespace",
@@ -118,7 +143,7 @@ func GetCommand() *cli.Command {
 					return err
 				}
 				if len(l) == 0 {
-					fmt.Printf("No releases found for %s/%s\n", cmd.String("namespace"), cmd.String("application"))
+					fmt.Printf("No releases found for %s/%s\n", internal.Namespace, konflux.ApplicationName)
 				}
 				var relStatus string
 				for _, v := range l {
@@ -132,7 +157,7 @@ func GetCommand() *cli.Command {
 				}
 				return nil
 			}
-			a, err := konflux.GetRelease(cmd.Args().First(), cmd.String("namespace"))
+			a, err := konflux.GetRelease()
 			if err != nil {
 				return err
 			}

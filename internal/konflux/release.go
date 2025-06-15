@@ -79,17 +79,17 @@ func ListSuccessfulReleases() ([]releaseapiv1alpha1.Release, error) {
 	return releases, nil
 }
 
-func GetRelease(releaseName, namespace string) (string, error) {
+func GetRelease() (string, error) {
 	kcli, err := internal.GetClient()
 	if err != nil {
 		panic(err)
 	}
 
 	app := releaseapiv1alpha1.Release{}
-	err = kcli.Get(context.TODO(), types.NamespacedName{Namespace: namespace, Name: releaseName}, &app)
+	err = kcli.Get(context.TODO(), types.NamespacedName{Namespace: internal.Namespace, Name: ReleaseName}, &app)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			return "", fmt.Errorf("release %s not found in namespace %s", releaseName, namespace)
+			return "", fmt.Errorf("release %s not found in namespace %s", ReleaseName, internal.Namespace)
 		}
 		return "", err
 	}
@@ -132,27 +132,27 @@ func getBundleVersionFromSnapshot(snapshot applicationapiv1alpha1.Snapshot) (str
 	return "", fmt.Errorf("label 'version' not found in bundle %s/%s", bundle.Namespace, bundle.Name)
 }
 
-func GenerateReleaseManifest(environment, rtype string) (*releaseapiv1alpha1.Release, error) {
+func GenerateReleaseManifest() (*releaseapiv1alpha1.Release, error) {
 	appType, err := GetApplicationType()
 	if err != nil {
 		return nil, err
 	}
 	if appType == operatorApplicationType {
-		return generateReleaseManifestForOperator(environment, rtype)
+		return generateReleaseManifestForOperator()
 	}
 	if appType == fbcApplicationType {
-		return generateReleaseManifestForFBC(environment, rtype)
+		return generateReleaseManifestForFBC()
 	}
 	return nil, fmt.Errorf("undefined application type %s for application %s/%s", appType, internal.Namespace, ApplicationName)
 }
 
-func generateReleaseManifestForFBC(environment, relType string) (*releaseapiv1alpha1.Release, error) {
+func generateReleaseManifestForFBC() (*releaseapiv1alpha1.Release, error) {
 	candidate, err := GetLatestSnapshotCandidateForRelease()
 	if err != nil {
 		return nil, err
 	}
-	rtype := releaseType(relType)
-	rp, err := getReleasePlanForEnvWithVersion(environment)
+	rtype := releaseType(ReleaseType)
+	rp, err := getReleasePlanForEnvWithVersion(EnvironmentName)
 	if err != nil {
 		return nil, err
 	}
@@ -168,7 +168,7 @@ func generateReleaseManifestForFBC(environment, relType string) (*releaseapiv1al
 	}
 	r := releaseapiv1alpha1.Release{
 		ObjectMeta: v1.ObjectMeta{
-			GenerateName: fmt.Sprintf("%s-%s-", ApplicationName, environment),
+			GenerateName: fmt.Sprintf("%s-%s-", ApplicationName, EnvironmentName),
 			Namespace:    internal.Namespace,
 		},
 		Spec: releaseapiv1alpha1.ReleaseSpec{
@@ -182,12 +182,12 @@ func generateReleaseManifestForFBC(environment, relType string) (*releaseapiv1al
 	return &r, nil
 }
 
-func generateReleaseManifestForOperator(environment, relType string) (*releaseapiv1alpha1.Release, error) {
+func generateReleaseManifestForOperator() (*releaseapiv1alpha1.Release, error) {
 	candidate, err := GetLatestSnapshotCandidateForRelease()
 	if err != nil {
 		return nil, err
 	}
-	rtype := releaseType(relType)
+	rtype := releaseType(ReleaseType)
 	appType, err := GetApplicationType()
 	if err != nil {
 		return nil, err
@@ -206,7 +206,7 @@ func generateReleaseManifestForOperator(environment, relType string) (*releaseap
 			rtype = bugReleaseType
 		}
 	}
-	rp, err := getReleasePlanForEnvWithVersion(environment)
+	rp, err := getReleasePlanForEnvWithVersion(EnvironmentName)
 	if err != nil {
 		return nil, err
 	}
@@ -222,7 +222,7 @@ func generateReleaseManifestForOperator(environment, relType string) (*releaseap
 	}
 	r := releaseapiv1alpha1.Release{
 		ObjectMeta: v1.ObjectMeta{
-			GenerateName: fmt.Sprintf("%s-%s-", ApplicationName, environment),
+			GenerateName: fmt.Sprintf("%s-%s-", ApplicationName, EnvironmentName),
 			Namespace:    internal.Namespace,
 		},
 		Spec: releaseapiv1alpha1.ReleaseSpec{

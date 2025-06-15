@@ -12,22 +12,20 @@ import (
 func GetCommand() *cli.Command {
 
 	return &cli.Command{
-		Name:                  "snapshot",
-		Aliases:               []string{"snapshots"},
-		Usage:                 "get snapshots",
-		EnableShellCompletion: true,
+		Name:    "snapshot",
+		Aliases: []string{"snapshots"},
+		Usage:   "get snapshots",
+		Arguments: []cli.Argument{&cli.StringArg{
+			Name:        "snapshot",
+			Destination: &konflux.SnapshotName,
+		}},
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "application",
 				Aliases:     []string{"app"},
 				Usage:       "-application <application_name>",
 				DefaultText: "Application where the components are derived from",
-			},
-			&cli.StringFlag{
-				Name:        "version",
-				Aliases:     []string{"v"},
-				Usage:       "Example: -version 0.1",
-				DefaultText: "Version",
+				Destination: &konflux.ApplicationName,
 			},
 			&cli.BoolFlag{
 				Name:        "candidate",
@@ -57,7 +55,7 @@ func GetCommand() *cli.Command {
 				}
 				return nil
 			}
-			a, err := konflux.GetSnapshot(cmd.Args().First(), cmd.String("namespace"))
+			a, err := konflux.GetSnapshot()
 			if err != nil {
 				return err
 			}

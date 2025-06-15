@@ -15,6 +15,10 @@ func GetCommand() *cli.Command {
 		Aliases:               []string{"comp", "comps", "components"},
 		Usage:                 "get components",
 		EnableShellCompletion: true,
+		Arguments: []cli.Argument{&cli.StringArg{
+			Name:        "component",
+			Destination: &konflux.ComponentName,
+		}},
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "application",
@@ -35,7 +39,7 @@ func GetCommand() *cli.Command {
 				}
 				return nil
 			}
-			a, err := konflux.GetComponent(cmd.Args().First())
+			a, err := konflux.GetComponent()
 			if err != nil {
 				return err
 			}

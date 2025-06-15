@@ -67,6 +67,13 @@ func ListSnapshots() ([]applicationapiv1alpha1.Snapshot, error) {
 }
 
 func GetLatestSnapshotCandidateForRelease() (*applicationapiv1alpha1.Snapshot, error) {
+	if len(SnapshotName) > 0 {
+		snapshot, err := GetSnapshot()
+		if err != nil {
+			return nil, err
+		}
+		return snapshot, nil
+	}
 	releasesForVersion, err := ListSuccessfulReleases()
 	if err != nil {
 		return nil, err
@@ -105,7 +112,7 @@ func GetLatestSnapshotCandidateForRelease() (*applicationapiv1alpha1.Snapshot, e
 		comp = &comps[0]
 	}
 	for _, v := range list {
-		if v.Name == lastSnapshot {
+		if v.Name == lastSnapshot && !ForceRelease {
 			break
 		}
 		valid, err := validateSnapshotCandicacy(comp.Name, v)
@@ -190,21 +197,21 @@ func validateSnapshotCandicacy(bundleName string, snapshot applicationapiv1alpha
 	return true, nil
 }
 
-func GetSnapshot(snapshotName, namespace string) (string, error) {
+func GetSnapshot() (*applicationapiv1alpha1.Snapshot, error) {
 	kcli, err := internal.GetClient()
 	if err != nil {
 		panic(err)
 	}
 
-	app := applicationapiv1alpha1.Snapshot{}
-	err = kcli.Get(context.TODO(), types.NamespacedName{Namespace: namespace, Name: snapshotName}, &app)
+	snapshot := applicationapiv1alpha1.Snapshot{}
+	err = kcli.Get(context.TODO(), types.NamespacedName{Namespace: internal.Namespace, Name: SnapshotName}, &snapshot)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			return "", fmt.Errorf("snapshot %s not found in namespace %s", snapshotName, namespace)
+			return nil, fmt.Errorf("snapshot %s not found in namespace %s", SnapshotName, internal.Namespace)
 		}
-		return "", err
+		return nil, err
 	}
 
-	return app.Name, nil
+	return &snapshot, nil
 
 }

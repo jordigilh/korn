@@ -12,14 +12,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func ListApplications(namespace string) ([]string, error) {
+func ListApplications() ([]string, error) {
 	kcli, err := internal.GetClient()
 	if err != nil {
 		panic(err)
 	}
 
 	list := applicationapiv1alpha1.ApplicationList{}
-	err = kcli.List(context.TODO(), &list, &client.ListOptions{Namespace: namespace})
+	err = kcli.List(context.TODO(), &list, &client.ListOptions{Namespace: internal.Namespace})
 	if err != nil {
 		return nil, err
 	}
@@ -31,17 +31,17 @@ func ListApplications(namespace string) ([]string, error) {
 
 }
 
-func GetApplication(appName string) (*applicationapiv1alpha1.Application, error) {
+func GetApplication() (*applicationapiv1alpha1.Application, error) {
 	kcli, err := internal.GetClient()
 	if err != nil {
 		return nil, err
 	}
 
 	app := applicationapiv1alpha1.Application{}
-	err = kcli.Get(context.TODO(), types.NamespacedName{Namespace: internal.Namespace, Name: appName}, &app)
+	err = kcli.Get(context.TODO(), types.NamespacedName{Namespace: internal.Namespace, Name: ApplicationName}, &app)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			return nil, fmt.Errorf("application %s not found in namespace %s", internal.Namespace, appName)
+			return nil, fmt.Errorf("application %s not found in namespace %s", internal.Namespace, ApplicationName)
 		}
 		return nil, err
 	}
@@ -51,7 +51,7 @@ func GetApplication(appName string) (*applicationapiv1alpha1.Application, error)
 }
 
 func GetApplicationType() (string, error) {
-	app, err := GetApplication(ApplicationName)
+	app, err := GetApplication()
 	if err != nil {
 		return "", err
 	}
