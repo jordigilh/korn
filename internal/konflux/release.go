@@ -79,22 +79,22 @@ func ListSuccessfulReleases() ([]releaseapiv1alpha1.Release, error) {
 	return releases, nil
 }
 
-func GetRelease() (string, error) {
+func GetRelease() (*releaseapiv1alpha1.Release, error) {
 	kcli, err := internal.GetClient()
 	if err != nil {
 		panic(err)
 	}
 
-	app := releaseapiv1alpha1.Release{}
-	err = kcli.Get(context.TODO(), types.NamespacedName{Namespace: internal.Namespace, Name: ReleaseName}, &app)
+	rel := releaseapiv1alpha1.Release{}
+	err = kcli.Get(context.TODO(), types.NamespacedName{Namespace: internal.Namespace, Name: ReleaseName}, &rel)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			return "", fmt.Errorf("release %s not found in namespace %s", ReleaseName, internal.Namespace)
+			return nil, fmt.Errorf("release %s not found in namespace %s", ReleaseName, internal.Namespace)
 		}
-		return "", err
+		return nil, err
 	}
 
-	return app.Name, nil
+	return &rel, nil
 }
 
 type releaseNote struct {
@@ -277,5 +277,6 @@ func WaitForReleaseToComplete(release releaseapiv1alpha1.Release) error {
 			}
 		}
 		<-timer.C
+		timer.Reset(10 * time.Second)
 	}
 }

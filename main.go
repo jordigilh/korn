@@ -2,17 +2,19 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"os"
 
-	"github.com/jordigilh/korn/cmd/application"
-	"github.com/jordigilh/korn/cmd/component"
-	"github.com/jordigilh/korn/cmd/release"
-	"github.com/jordigilh/korn/cmd/snapshot"
+	"github.com/jordigilh/korn/cmd/create"
+	"github.com/jordigilh/korn/cmd/get"
+	"github.com/jordigilh/korn/cmd/waitfor"
 	"github.com/jordigilh/korn/internal"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v3"
+)
+
+var (
+	debug bool
 )
 
 func main() {
@@ -22,7 +24,7 @@ func main() {
 	})
 	logrus.SetOutput(os.Stdout)
 	cmd := &cli.Command{
-		Name:                  "Konflux Operator Release applicatioN",
+		Name:                  "korn",
 		Usage:                 "",
 		DefaultCommand:        "korn -h",
 		EnableShellCompletion: true,
@@ -41,14 +43,14 @@ func main() {
 				Value:       internal.GetCurrentNamespace(),
 			},
 			&cli.BoolFlag{
-				Name:    "debug",
-				Aliases: []string{"d"},
-				Usage:   "Enable debug mode",
+				Name:        "debug",
+				Aliases:     []string{"d"},
+				Usage:       "Enable debug mode",
+				Destination: &debug,
 			},
 		},
 		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
-			internal.Kubeconfig = cmd.String("kubeconfig")
-			if cmd.Bool("debug") {
+			if debug {
 				logrus.SetLevel(logrus.DebugLevel)
 				logrus.Debug("Debug mode enabled")
 			} else {
@@ -56,34 +58,10 @@ func main() {
 			}
 			return ctx, nil
 		},
-
 		Commands: []*cli.Command{
-			{
-				Name:  "get",
-				Usage: "get <resources>",
-				Commands: []*cli.Command{
-					application.GetCommand(),
-					component.GetCommand(),
-					snapshot.GetCommand(),
-					release.GetCommand(),
-				},
-				Action: func(ctx context.Context, cmd *cli.Command) error {
-					fmt.Println("added task: ", cmd.Args().First())
-					return nil
-				},
-			},
-			{
-				Name:  "create",
-				Usage: "create release",
-				Commands: []*cli.Command{
-					release.CreateCommand(),
-				},
-				Action: func(ctx context.Context, cmd *cli.Command) error {
-					fmt.Println("added task: ", cmd.Args().First())
-					return nil
-				},
-			},
-		},
+			get.Command(),
+			create.Command(),
+			waitfor.Command()},
 	}
 
 	if err := cmd.Run(context.Background(), os.Args); err != nil {
