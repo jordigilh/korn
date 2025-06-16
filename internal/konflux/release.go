@@ -21,37 +21,37 @@ import (
 )
 
 func ListReleases() ([]releaseapiv1alpha1.Release, error) {
-	kcli, err := internal.GetClient()
-	if err != nil {
-		panic(err)
-	}
-	appType, err := GetApplicationType()
-	if err != nil {
-		return nil, err
-	}
-	var comp *applicationapiv1alpha1.Component
-	if appType == "operator" {
-		comp, err = GetBundleComponentForVersion()
+	labels := client.MatchingLabels{}
+	if len(ApplicationName) > 0 {
+		appType, err := GetApplicationType()
 		if err != nil {
 			return nil, err
 		}
-	} else if appType == "fbc" {
-		// Get the first and only component
-		comps, err := ListComponents()
-		if err != nil {
-			return nil, err
+		var comp *applicationapiv1alpha1.Component
+		if appType == "operator" {
+			comp, err = GetBundleComponentForVersion()
+			if err != nil {
+				return nil, err
+			}
+		} else if appType == "fbc" {
+			// Get the first and only component
+			comps, err := ListComponents()
+			if err != nil {
+				return nil, err
+			}
+			if len(comps) == 0 {
+				return nil, fmt.Errorf("application %s/%s does not have any component associated", internal.Namespace, ApplicationName)
+			}
+			if len(comps) > 1 {
+				return nil, fmt.Errorf("application %s/%s of type FBC can only have 1 component per Konflux recommendation ", internal.Namespace, ApplicationName)
+			}
+			comp = &comps[0]
 		}
-		if len(comps) == 0 {
-			return nil, fmt.Errorf("application %s/%s does not have any component associated", internal.Namespace, ApplicationName)
-		}
-		if len(comps) > 1 {
-			return nil, fmt.Errorf("application %s/%s of type FBC can only have 1 component per Konflux recommendation ", internal.Namespace, ApplicationName)
-		}
-		comp = &comps[0]
+		labels["appstudio.openshift.io/application"] = ApplicationName
+		labels["appstudio.openshift.io/component"] = comp.Name
 	}
-
 	list := releaseapiv1alpha1.ReleaseList{}
-	err = kcli.List(context.TODO(), &list, &client.ListOptions{Namespace: internal.Namespace}, &client.MatchingLabels{"appstudio.openshift.io/application": ApplicationName, "appstudio.openshift.io/component": comp.Name})
+	err := internal.KubeClient.List(context.TODO(), &list, &client.ListOptions{Namespace: internal.Namespace}, labels)
 	if err != nil {
 		return nil, err
 	}
@@ -80,13 +80,8 @@ func ListSuccessfulReleases() ([]releaseapiv1alpha1.Release, error) {
 }
 
 func GetRelease() (*releaseapiv1alpha1.Release, error) {
-	kcli, err := internal.GetClient()
-	if err != nil {
-		panic(err)
-	}
-
 	rel := releaseapiv1alpha1.Release{}
-	err = kcli.Get(context.TODO(), types.NamespacedName{Namespace: internal.Namespace, Name: ReleaseName}, &rel)
+	err := internal.KubeClient.Get(context.TODO(), types.NamespacedName{Namespace: internal.Namespace, Name: ReleaseName}, &rel)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return nil, fmt.Errorf("release %s not found in namespace %s", ReleaseName, internal.Namespace)
@@ -237,11 +232,7 @@ func generateReleaseManifestForOperator() (*releaseapiv1alpha1.Release, error) {
 }
 
 func CreateRelease(release releaseapiv1alpha1.Release) (*releaseapiv1alpha1.Release, error) {
-	kcli, err := internal.GetClient()
-	if err != nil {
-		panic(err)
-	}
-	err = kcli.Create(context.Background(), &release, &client.CreateOptions{})
+	err := internal.KubeClient.Create(context.Background(), &release, &client.CreateOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -249,18 +240,14 @@ func CreateRelease(release releaseapiv1alpha1.Release) (*releaseapiv1alpha1.Rele
 }
 
 func WaitForReleaseToComplete(release releaseapiv1alpha1.Release) error {
-	kcli, err := internal.GetClient()
 	start := time.Now()
-	if err != nil {
-		panic(err)
-	}
-	timer := time.NewTimer(10 * time.Second)
+	timer := time.NewTimer(time.Duration(WaitForTimeout) * time.Minute)
 	defer timer.Stop()
 	for {
 		if start.Add(60 * time.Minute).Before(time.Now()) {
 			return fmt.Errorf("timed out while waiting for release %s/%s to finish", release.Namespace, release.Name)
 		}
-		err = kcli.Get(context.Background(), types.NamespacedName{Namespace: release.Namespace, Name: release.Name}, &release, &client.GetOptions{})
+		err := internal.KubeClient.Get(context.Background(), types.NamespacedName{Namespace: release.Namespace, Name: release.Name}, &release, &client.GetOptions{})
 		if err != nil {
 			return err
 		}

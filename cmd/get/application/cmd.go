@@ -20,12 +20,14 @@ func GetCommand() *cli.Command {
 			Destination: &konflux.ApplicationName,
 		}},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			if len(cmd.Args().First()) == 0 {
+			if len(konflux.ApplicationName) == 0 {
 				l, err := konflux.ListApplications()
 				if err != nil {
 					return err
 				}
-				fmt.Printf("%+v", l)
+				for _, app := range l {
+					fmt.Printf("%s\t%s\n", app.Name, app.Labels[konflux.ApplicationTypeLabel])
+				}
 				return nil
 			}
 			a, err := konflux.GetApplication()

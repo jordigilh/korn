@@ -37,7 +37,7 @@ func GetCommand() *cli.Command {
 		},
 		Description: "Retrieves a snapshot or the list of components. If application or version is not provided, it will list all snapshots in the namespace",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			if len(cmd.Args().First()) == 0 {
+			if len(konflux.SnapshotName) == 0 {
 				if cmd.Bool("candidate") {
 					snapshot, err := konflux.GetLatestSnapshotCandidateForRelease()
 					if err != nil {

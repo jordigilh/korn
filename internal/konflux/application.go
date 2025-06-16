@@ -12,33 +12,20 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func ListApplications() ([]string, error) {
-	kcli, err := internal.GetClient()
-	if err != nil {
-		panic(err)
-	}
+func ListApplications() ([]applicationapiv1alpha1.Application, error) {
 
 	list := applicationapiv1alpha1.ApplicationList{}
-	err = kcli.List(context.TODO(), &list, &client.ListOptions{Namespace: internal.Namespace})
+	err := internal.KubeClient.List(context.TODO(), &list, &client.ListOptions{Namespace: internal.Namespace})
 	if err != nil {
 		return nil, err
 	}
-	var ret []string
-	for _, v := range list.Items {
-		ret = append(ret, v.Name)
-	}
-	return ret, nil
-
+	return list.Items, nil
 }
 
 func GetApplication() (*applicationapiv1alpha1.Application, error) {
-	kcli, err := internal.GetClient()
-	if err != nil {
-		return nil, err
-	}
 
 	app := applicationapiv1alpha1.Application{}
-	err = kcli.Get(context.TODO(), types.NamespacedName{Namespace: internal.Namespace, Name: ApplicationName}, &app)
+	err := internal.KubeClient.Get(context.TODO(), types.NamespacedName{Namespace: internal.Namespace, Name: ApplicationName}, &app)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return nil, fmt.Errorf("application %s not found in namespace %s", internal.Namespace, ApplicationName)
@@ -55,9 +42,9 @@ func GetApplicationType() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	appType, ok := app.ObjectMeta.Labels[applicationTypeLabel]
+	appType, ok := app.ObjectMeta.Labels[ApplicationTypeLabel]
 	if !ok {
-		return "", fmt.Errorf("unable to determine application type: application %s/%s does not contain label %s", internal.Namespace, ApplicationName, applicationTypeLabel)
+		return "", fmt.Errorf("unable to determine application type: application %s/%s does not contain label %s", internal.Namespace, ApplicationName, ApplicationTypeLabel)
 	}
 	return appType, nil
 }

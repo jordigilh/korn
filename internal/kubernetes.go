@@ -14,6 +14,7 @@ import (
 var (
 	Kubeconfig = GetDefaultKubeconfigPath()
 	Namespace  = GetCurrentNamespace()
+	KubeClient client.Client
 )
 
 func GetDefaultKubeconfigPath() string {

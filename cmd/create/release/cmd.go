@@ -82,6 +82,14 @@ func CreateCommand() *cli.Command {
 				},
 				Destination: &konflux.ReleaseType,
 			},
+			&cli.IntFlag{
+				Name:        "timeout",
+				Aliases:     []string{"t"},
+				Usage:       "-timeout timeout in minutes",
+				DefaultText: "Time out in minutes for the wait for operation to complete",
+				Destination: &konflux.WaitForTimeout,
+				Value:       60,
+			},
 		},
 		Description: "Creates a release or the list of components. If application or version is not provided, it will list all snapshots in the namespace",
 		Action: func(ctx context.Context, cmd *cli.Command) error {

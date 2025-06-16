@@ -16,36 +16,36 @@ import (
 )
 
 func ListSnapshots() ([]applicationapiv1alpha1.Snapshot, error) {
-	kcli, err := internal.GetClient()
-	if err != nil {
-		panic(err)
-	}
-	appType, err := GetApplicationType()
-	if err != nil {
-		return nil, err
-	}
 	list := applicationapiv1alpha1.SnapshotList{}
-	var comp *applicationapiv1alpha1.Component
-	if appType == "operator" {
-		comp, err = GetBundleComponentForVersion()
+	labels := client.MatchingLabels{"pac.test.appstudio.openshift.io/event-type": "push"}
+	if len(ApplicationName) > 0 {
+		appType, err := GetApplicationType()
 		if err != nil {
 			return nil, err
 		}
-	} else if appType == "fbc" {
-		// Get the first and only component
-		comps, err := ListComponents()
-		if err != nil {
-			return nil, err
+		var comp *applicationapiv1alpha1.Component
+		if appType == "operator" {
+			comp, err = GetBundleComponentForVersion()
+			if err != nil {
+				return nil, err
+			}
+		} else if appType == "fbc" {
+			// Get the first and only component
+			comps, err := ListComponents()
+			if err != nil {
+				return nil, err
+			}
+			if len(comps) == 0 {
+				return nil, fmt.Errorf("application %s/%s does not have any component associated", internal.Namespace, ApplicationName)
+			}
+			if len(comps) > 1 {
+				return nil, fmt.Errorf("application %s/%s of type FBC can only have 1 component per Konflux recommendation ", internal.Namespace, ApplicationName)
+			}
+			comp = &comps[0]
 		}
-		if len(comps) == 0 {
-			return nil, fmt.Errorf("application %s/%s does not have any component associated", internal.Namespace, ApplicationName)
-		}
-		if len(comps) > 1 {
-			return nil, fmt.Errorf("application %s/%s of type FBC can only have 1 component per Konflux recommendation ", internal.Namespace, ApplicationName)
-		}
-		comp = &comps[0]
+		labels["appstudio.openshift.io/component"] = comp.Name
 	}
-	err = kcli.List(context.TODO(), &list, &client.ListOptions{Namespace: internal.Namespace}, &client.MatchingLabels{"pac.test.appstudio.openshift.io/event-type": "push", "appstudio.openshift.io/component": comp.Name})
+	err := internal.KubeClient.List(context.TODO(), &list, &client.ListOptions{Namespace: internal.Namespace}, labels)
 	if err != nil {
 		return nil, err
 	}
@@ -198,13 +198,8 @@ func validateSnapshotCandicacy(bundleName string, snapshot applicationapiv1alpha
 }
 
 func GetSnapshot() (*applicationapiv1alpha1.Snapshot, error) {
-	kcli, err := internal.GetClient()
-	if err != nil {
-		panic(err)
-	}
-
 	snapshot := applicationapiv1alpha1.Snapshot{}
-	err = kcli.Get(context.TODO(), types.NamespacedName{Namespace: internal.Namespace, Name: SnapshotName}, &snapshot)
+	err := internal.KubeClient.Get(context.TODO(), types.NamespacedName{Namespace: internal.Namespace, Name: SnapshotName}, &snapshot)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return nil, fmt.Errorf("snapshot %s not found in namespace %s", SnapshotName, internal.Namespace)

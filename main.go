@@ -56,6 +56,11 @@ func main() {
 			} else {
 				logrus.SetLevel(logrus.InfoLevel)
 			}
+			var err error
+			internal.KubeClient, err = internal.GetClient()
+			if err != nil {
+				panic(err)
+			}
 			return ctx, nil
 		},
 		Commands: []*cli.Command{

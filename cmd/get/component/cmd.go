@@ -29,13 +29,13 @@ func GetCommand() *cli.Command {
 			}},
 		Description: "Retrieves a component or the list of components. If application is not provided, it will list all components in the namespace ",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			if len(cmd.Args().First()) == 0 {
+			if len(konflux.ComponentName) == 0 {
 				l, err := konflux.ListComponents()
 				if err != nil {
 					return err
 				}
 				for _, c := range l {
-					fmt.Printf("%s\n", c.Name)
+					fmt.Printf("%s\t%s\n", c.Name, c.Labels[konflux.ComponentTypeLabel])
 				}
 				return nil
 			}

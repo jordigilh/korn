@@ -12,13 +12,9 @@ import (
 )
 
 func ListComponentWithlabels(labels client.MatchingLabels) ([]applicationapiv1alpha1.Component, error) {
-	kcli, err := internal.GetClient()
-	if err != nil {
-		panic(err)
-	}
 
 	list := applicationapiv1alpha1.ComponentList{}
-	err = kcli.List(context.TODO(), &list, &client.ListOptions{Namespace: internal.Namespace}, labels)
+	err := internal.KubeClient.List(context.TODO(), &list, &client.ListOptions{Namespace: internal.Namespace}, labels)
 	if err != nil {
 		return nil, err
 	}
@@ -31,17 +27,15 @@ func ListComponents() ([]applicationapiv1alpha1.Component, error) {
 }
 
 func ListComponentsWithMatchingLabels(labels client.MatchingLabels) ([]applicationapiv1alpha1.Component, error) {
-	kcli, err := internal.GetClient()
-	if err != nil {
-		panic(err)
-	}
-
 	list := applicationapiv1alpha1.ComponentList{}
-	err = kcli.List(context.TODO(), &list, &client.ListOptions{Namespace: internal.Namespace}, labels)
+	err := internal.KubeClient.List(context.TODO(), &list, &client.ListOptions{Namespace: internal.Namespace}, labels)
 	if err != nil {
 		return nil, err
 	}
 	ret := []applicationapiv1alpha1.Component{}
+	if len(ApplicationName) == 0 {
+		return list.Items, nil
+	}
 	for _, c := range list.Items {
 		if c.Spec.Application == ApplicationName {
 			ret = append(ret, c)
@@ -52,13 +46,8 @@ func ListComponentsWithMatchingLabels(labels client.MatchingLabels) ([]applicati
 }
 
 func GetComponent() (*applicationapiv1alpha1.Component, error) {
-	kcli, err := internal.GetClient()
-	if err != nil {
-		panic(err)
-	}
-
 	component := applicationapiv1alpha1.Component{}
-	err = kcli.Get(context.TODO(), types.NamespacedName{Namespace: internal.Namespace, Name: ComponentName}, &component)
+	err := internal.KubeClient.Get(context.TODO(), types.NamespacedName{Namespace: internal.Namespace, Name: ComponentName}, &component)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return nil, fmt.Errorf("component %s not found in namespace %s", ComponentName, internal.Namespace)
@@ -71,8 +60,8 @@ func GetComponent() (*applicationapiv1alpha1.Component, error) {
 }
 
 const (
-	componentTypeLabel      = "korn.redhat.io/component"
-	applicationTypeLabel    = "korn.redhat.io/application"
+	ComponentTypeLabel      = "korn.redhat.io/component"
+	ApplicationTypeLabel    = "korn.redhat.io/application"
 	releaseEnvironmentLabel = "korn.redhat.io/environment"
 	bundleReferenceLabel    = "korn.redhat.io/bundle-label"
 
@@ -84,12 +73,12 @@ const (
 )
 
 func GetBundleComponentForVersion() (*applicationapiv1alpha1.Component, error) {
-	l, err := ListComponentsWithMatchingLabels(client.MatchingLabels{componentTypeLabel: componentBundleType})
+	l, err := ListComponentsWithMatchingLabels(client.MatchingLabels{ComponentTypeLabel: componentBundleType})
 	if err != nil {
 		return nil, err
 	}
 	if len(l) == 0 {
-		return nil, fmt.Errorf("no bundle component found for application %s/%s with labels %s=bundle", internal.Namespace, ApplicationName, componentTypeLabel)
+		return nil, fmt.Errorf("no bundle component found for application %s/%s with labels %s=bundle", internal.Namespace, ApplicationName, ComponentTypeLabel)
 	}
 	var comps []applicationapiv1alpha1.Component
 	for _, c := range l {

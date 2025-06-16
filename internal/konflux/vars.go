@@ -8,4 +8,5 @@ var (
 	ReleaseType     string
 	SnapshotName    string
 	ForceRelease    bool
+	WaitForTimeout  int
 )

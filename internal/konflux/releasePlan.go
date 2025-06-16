@@ -11,12 +11,8 @@ import (
 
 func getReleasePlanForEnvWithVersion(environment string) (*releaseapiv1alpha1.ReleasePlan, error) {
 	l := releaseapiv1alpha1.ReleasePlanList{}
-	cli, err := internal.GetClient()
-	if err != nil {
-		return nil, err
-	}
 	labels := client.MatchingLabels{releaseEnvironmentLabel: environment}
-	err = cli.List(context.Background(), &l, &client.ListOptions{Namespace: internal.Namespace}, &labels)
+	err := internal.KubeClient.List(context.Background(), &l, &client.ListOptions{Namespace: internal.Namespace}, &labels)
 	if err != nil {
 		return nil, err
 	}
