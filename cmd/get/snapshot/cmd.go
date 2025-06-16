@@ -51,15 +51,29 @@ func GetCommand() *cli.Command {
 					return err
 				}
 				for _, v := range l {
-					fmt.Printf("Name:%s\tCreation Date:%s\n", v.Name, v.CreationTimestamp.Format(time.UnixDate))
+					var status string
+					for _, c := range v.Status.Conditions {
+						if c.Type == "AppStudioTestSucceeded" {
+							status = c.Reason
+							break
+						}
+					}
+					fmt.Printf("Name: %s\tCreation Date: %s\tStatus: %s\n", v.Name, v.CreationTimestamp.Format(time.UnixDate), status)
 				}
 				return nil
 			}
-			a, err := konflux.GetSnapshot()
+			s, err := konflux.GetSnapshot()
 			if err != nil {
 				return err
 			}
-			fmt.Printf("%+v", a)
+			var status string
+			for _, c := range s.Status.Conditions {
+				if c.Type == "AppStudioTestSucceeded" {
+					status = c.Reason
+					break
+				}
+			}
+			fmt.Printf("Name: %s\tCreation Date: %s\tStatus: %s\n", s.Name, s.CreationTimestamp.Format(time.UnixDate), status)
 			return nil
 		},
 	}
