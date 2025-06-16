@@ -2,11 +2,27 @@ package snapshot
 
 import (
 	"context"
-	"fmt"
+	"os"
 	"time"
 
 	"github.com/jordigilh/korn/internal/konflux"
+	applicationapiv1alpha1 "github.com/konflux-ci/application-api/api/v1alpha1"
 	"github.com/urfave/cli/v3"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/duration"
+	"k8s.io/cli-runtime/pkg/printers"
+)
+
+var (
+	table = &metav1.Table{
+		ColumnDefinitions: []metav1.TableColumnDefinition{
+			{Name: "Name", Type: "string"},
+			{Name: "Application", Type: "string"},
+			{Name: "Status", Type: "string"},
+			{Name: "Age", Type: "string"},
+		},
+	}
+	p = printers.NewTablePrinter(printers.PrintOptions{})
 )
 
 func GetCommand() *cli.Command {
@@ -43,38 +59,43 @@ func GetCommand() *cli.Command {
 					if err != nil {
 						return err
 					}
-					fmt.Printf("Candidate snapshot found with name:%s and creation date: %s\n", snapshot.Name, snapshot.CreationTimestamp.Format(time.UnixDate))
+					print([]applicationapiv1alpha1.Snapshot{*snapshot})
 					return nil
 				}
 				l, err := konflux.ListSnapshots()
 				if err != nil {
 					return err
 				}
-				for _, v := range l {
-					var status string
-					for _, c := range v.Status.Conditions {
-						if c.Type == "AppStudioTestSucceeded" {
-							status = c.Reason
-							break
-						}
-					}
-					fmt.Printf("Name: %s\tCreation Date: %s\tStatus: %s\n", v.Name, v.CreationTimestamp.Format(time.UnixDate), status)
-				}
+				print(l)
 				return nil
 			}
 			s, err := konflux.GetSnapshot()
 			if err != nil {
 				return err
 			}
-			var status string
-			for _, c := range s.Status.Conditions {
-				if c.Type == "AppStudioTestSucceeded" {
-					status = c.Reason
-					break
-				}
-			}
-			fmt.Printf("Name: %s\tCreation Date: %s\tStatus: %s\n", s.Name, s.CreationTimestamp.Format(time.UnixDate), status)
+			print([]applicationapiv1alpha1.Snapshot{*s})
 			return nil
 		},
 	}
+}
+
+func print(comps []applicationapiv1alpha1.Snapshot) {
+	rows := []metav1.TableRow{}
+	var status string
+	for _, v := range comps {
+		for _, c := range v.Status.Conditions {
+			if c.Type == "AppStudioTestSucceeded" {
+				status = c.Reason
+				break
+			}
+		}
+		rows = append(rows, metav1.TableRow{Cells: []interface{}{
+			v.Name,
+			v.Spec.Application,
+			status,
+			duration.HumanDuration(time.Since(v.CreationTimestamp.Time)),
+		}})
+	}
+	table.Rows = rows
+	p.PrintObj(table, os.Stdout)
 }

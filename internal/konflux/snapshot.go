@@ -128,7 +128,7 @@ func GetLatestSnapshotCandidateForRelease() (*applicationapiv1alpha1.Snapshot, e
 
 func hasSnapshotCompletedSuccessfully(snapshot applicationapiv1alpha1.Snapshot) bool {
 	for _, v := range snapshot.Status.Conditions {
-		if v.Type == "AppStudioIntegrationStatus" && v.Reason == "Finished" {
+		if v.Type == "AppStudioTestSucceeded" && v.Reason == "Finished" {
 			return true
 		}
 	}

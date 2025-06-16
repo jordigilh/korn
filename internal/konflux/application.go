@@ -12,14 +12,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func ListApplications() ([]applicationapiv1alpha1.Application, error) {
+func ListApplications() (*applicationapiv1alpha1.ApplicationList, error) {
 
 	list := applicationapiv1alpha1.ApplicationList{}
 	err := internal.KubeClient.List(context.TODO(), &list, &client.ListOptions{Namespace: internal.Namespace})
 	if err != nil {
 		return nil, err
 	}
-	return list.Items, nil
+	return &list, nil
 }
 
 func GetApplication() (*applicationapiv1alpha1.Application, error) {

@@ -2,10 +2,26 @@ package application
 
 import (
 	"context"
-	"fmt"
+	"os"
+	"time"
 
 	"github.com/jordigilh/korn/internal/konflux"
+	applicationapiv1alpha1 "github.com/konflux-ci/application-api/api/v1alpha1"
 	"github.com/urfave/cli/v3"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/duration"
+	"k8s.io/cli-runtime/pkg/printers"
+)
+
+var (
+	table = &metav1.Table{
+		ColumnDefinitions: []metav1.TableColumnDefinition{
+			{Name: "Name", Type: "string"},
+			{Name: "Type", Type: "string"},
+			{Name: "Age", Type: "string"},
+		},
+	}
+	p = printers.NewTablePrinter(printers.PrintOptions{})
 )
 
 func GetCommand() *cli.Command {
@@ -25,17 +41,28 @@ func GetCommand() *cli.Command {
 				if err != nil {
 					return err
 				}
-				for _, app := range l {
-					fmt.Printf("%s\t%s\n", app.Name, app.Labels[konflux.ApplicationTypeLabel])
-				}
+				print(l.Items)
 				return nil
 			}
 			a, err := konflux.GetApplication()
 			if err != nil {
 				return err
 			}
-			fmt.Printf("%+v", a.Name)
+			print([]applicationapiv1alpha1.Application{*a})
 			return nil
 		},
 	}
+}
+
+func print(apps []applicationapiv1alpha1.Application) {
+	rows := []metav1.TableRow{}
+	for _, v := range apps {
+		rows = append(rows, metav1.TableRow{Cells: []interface{}{
+			v.Name,
+			v.Labels[konflux.ApplicationTypeLabel],
+			duration.HumanDuration(time.Since(v.CreationTimestamp.Time)),
+		}})
+	}
+	table.Rows = rows
+	p.PrintObj(table, os.Stdout)
 }
