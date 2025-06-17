@@ -257,6 +257,12 @@ func WaitForReleaseToComplete(release releaseapiv1alpha1.Release) error {
 		return err
 	}
 
+	timer := time.NewTimer(time.Duration(WaitForTimeout) * time.Minute)
+
+	go func() {
+		<-timer.C
+		watch.Stop()
+	}()
 	for event := range watch.ResultChan() {
 		logrus.Debugf("Event Object Kind %+v\n", event.Object.GetObjectKind().GroupVersionKind())
 		release := releaseapiv1alpha1.Release{}
@@ -299,6 +305,7 @@ func WaitForReleaseToComplete(release releaseapiv1alpha1.Release) error {
 			logrus.Debugf("Release %s/%s still ongoing after %s", release.Namespace, release.Name, duration.HumanDuration(time.Since(start)))
 		}
 	}
+	fmt.Printf("Timeout of %d minute(s) reached waiting for release %s/%s to complete", WaitForTimeout, release.Namespace, release.Name)
 	return nil
 
 }
