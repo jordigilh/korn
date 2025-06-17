@@ -1,11 +1,14 @@
 package internal
 
 import (
+	"log"
 	"path/filepath"
 
 	applicationapiv1alpha1 "github.com/konflux-ci/application-api/api/v1alpha1"
 	releaseapiv1alpha1 "github.com/konflux-ci/release-service/api/v1alpha1"
 	"github.com/sirupsen/logrus"
+
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -66,4 +69,17 @@ func GetClient() (client.Client, error) {
 	}
 
 	return client, nil
+}
+
+func GetDynamicClient() (*dynamic.DynamicClient, error) {
+	config, err := clientcmd.BuildConfigFromFlags("", Kubeconfig)
+	if err != nil {
+		panic(err.Error())
+	}
+	// Create the dynamic client
+	dynamicClient, err := dynamic.NewForConfig(config)
+	if err != nil {
+		log.Fatalf("Failed to create dynamic client: %v", err)
+	}
+	return dynamicClient, nil
 }

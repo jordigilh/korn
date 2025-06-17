@@ -78,10 +78,14 @@ func GetLatestSnapshotCandidateForRelease() (*applicationapiv1alpha1.Snapshot, e
 	if err != nil {
 		return nil, err
 	}
-	var lastSnapshot string
+	var lastSnapshot *applicationapiv1alpha1.Snapshot
 	if len(releasesForVersion) > 0 {
 		// Copy the last successful snapshot as the cutoff version
-		lastSnapshot = releasesForVersion[0].Spec.Snapshot
+		SnapshotName = releasesForVersion[0].Spec.Snapshot
+		lastSnapshot, err = GetSnapshot()
+		if err != nil {
+			return nil, err
+		}
 	}
 	list, err := ListSnapshots()
 	if err != nil {
@@ -112,7 +116,7 @@ func GetLatestSnapshotCandidateForRelease() (*applicationapiv1alpha1.Snapshot, e
 		comp = &comps[0]
 	}
 	for _, v := range list {
-		if v.Name == lastSnapshot && !ForceRelease {
+		if v.Name == lastSnapshot.Name {
 			break
 		}
 		valid, err := validateSnapshotCandicacy(comp.Name, v)
@@ -123,7 +127,12 @@ func GetLatestSnapshotCandidateForRelease() (*applicationapiv1alpha1.Snapshot, e
 			return &v, nil
 		}
 	}
-	return nil, fmt.Errorf("no new valid snapshot candidates found for bundle %s/%s after the one used for the last release %s", internal.Namespace, comp.Name, lastSnapshot)
+	if ForceRelease {
+		// When force is enabled, we will at least return the last snapshot used, unless a newer one is detected. This ensures that the command
+		// will always trigger a build
+		return lastSnapshot, nil
+	}
+	return nil, fmt.Errorf("no new valid snapshot candidates found for bundle %s/%s after the one used for the last release %s", internal.Namespace, comp.Name, lastSnapshot.Name)
 }
 
 func hasSnapshotCompletedSuccessfully(snapshot applicationapiv1alpha1.Snapshot) bool {

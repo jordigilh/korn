@@ -16,7 +16,9 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/duration"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -240,30 +242,89 @@ func CreateRelease(release releaseapiv1alpha1.Release) (*releaseapiv1alpha1.Rele
 }
 
 func WaitForReleaseToComplete(release releaseapiv1alpha1.Release) error {
+
 	start := time.Now()
-	timer := time.NewTimer(time.Duration(WaitForTimeout) * time.Minute)
-	defer timer.Stop()
-	for {
-		if start.Add(60 * time.Minute).Before(time.Now()) {
-			return fmt.Errorf("timed out while waiting for release %s/%s to finish", release.Namespace, release.Name)
+	dynamicClient, err := internal.GetDynamicClient()
+	if err != nil {
+		return nil
+	}
+	watch, err := dynamicClient.Resource(schema.GroupVersionResource{
+		Group:    "appstudio.redhat.com",
+		Version:  "v1alpha1",
+		Resource: "releases",
+	}).Namespace(internal.Namespace).Watch(context.TODO(), v1.SingleObject(v1.ObjectMeta{Name: release.Name, Namespace: internal.Namespace}))
+	if err != nil {
+		return err
+	}
+
+	for event := range watch.ResultChan() {
+		logrus.Debugf("Event Object Kind %+v\n", event.Object.GetObjectKind().GroupVersionKind())
+		release := releaseapiv1alpha1.Release{}
+		if event.Object == nil {
+			return fmt.Errorf("object was deleted")
 		}
-		err := internal.KubeClient.Get(context.Background(), types.NamespacedName{Namespace: release.Namespace, Name: release.Name}, &release, &client.GetOptions{})
+		b, err := json.Marshal(event.Object)
 		if err != nil {
 			return err
 		}
-		for _, c := range release.Status.Conditions {
-			if c.Type == "Released" {
-				switch c.Reason {
-				case "Failed":
-					return fmt.Errorf("release %s/%s failed", release.Namespace, release.Name)
-				case "Succeeded":
-					return nil
-				case "Progressing":
-					logrus.Debugf("Release %s/%s still ongoing after %s", release.Namespace, release.Name, time.Since(start).String())
-				}
-			}
+		err = json.Unmarshal(b, &release)
+		if err != nil {
+			return err
 		}
-		<-timer.C
-		timer.Reset(10 * time.Second)
+		logrus.Debugf("[%s] Release: %s\n", event.Type, release.GetName())
+		creleased := getConditionByType("Released", release.Status.Conditions)
+		if creleased == nil {
+			// condition not yet defined
+			logrus.Debugf("Condition 'Release' not yet created for " + release.Name)
+			continue
+		}
+		switch creleased.Reason {
+		case "Failed":
+			cpipeline := getConditionByType("ManagedPipelineProcessed", release.Status.Conditions)
+			msg := fmt.Sprintf("release %s failed in pipeline %s", release.Name, release.Status.ManagedProcessing.PipelineRun)
+			if cpipeline != nil && cpipeline.Reason == "Failed" {
+				return fmt.Errorf("%s: %s", msg, cpipeline.Message)
+			}
+			return fmt.Errorf("%s: %s", msg, creleased.Message)
+		case "Succeeded":
+			adv := artifact{}
+			err := json.Unmarshal(release.Status.Artifacts.Raw, &adv)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("Artifacts:\n %+v\n", adv)
+			fmt.Printf("RAW Artifacts:\n %+v\n", release.Status.Artifacts.Raw)
+			return nil
+		case "Progressing":
+			logrus.Debugf("Release %s/%s still ongoing after %s", release.Namespace, release.Name, duration.HumanDuration(time.Since(start)))
+		}
 	}
+	return nil
+
+}
+
+func getConditionByType(reason string, conditions []v1.Condition) *v1.Condition {
+	for _, c := range conditions {
+		if c.Type == reason {
+			return &c
+		}
+	}
+	return nil
+}
+
+type artifact struct {
+	Advisory    advisory     `json:"advisory"`
+	CatalogURLS []catalogURL `json:"catalog_urls"`
+}
+
+type advisory struct {
+	// Advisory URL
+	InternalURL string `json:"internal_url,omitempty"`
+	// Errata URL
+	URL string `json:"url,omitempty"`
+}
+
+type catalogURL struct {
+	Name string `json:"name"`
+	URL  string `json:"url"`
 }

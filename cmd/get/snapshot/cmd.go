@@ -19,6 +19,7 @@ var (
 			{Name: "Name", Type: "string"},
 			{Name: "Application", Type: "string"},
 			{Name: "Status", Type: "string"},
+			{Name: "Commit", Type: "string"},
 			{Name: "Age", Type: "string"},
 		},
 	}
@@ -93,6 +94,7 @@ func print(comps []applicationapiv1alpha1.Snapshot) {
 			v.Name,
 			v.Spec.Application,
 			status,
+			v.Annotations["pac.test.appstudio.openshift.io/sha-title"],
 			duration.HumanDuration(time.Since(v.CreationTimestamp.Time)),
 		}})
 	}
