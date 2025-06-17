@@ -1,3 +1,5 @@
 vendor/*
 .vscode
 korn
+bin/
+output/
