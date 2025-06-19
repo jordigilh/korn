@@ -9,4 +9,7 @@ var (
 	SnapshotName    string
 	ForceRelease    bool
 	WaitForTimeout  int
+	DryRun          bool
+	OutputType      string
+	SHA             string
 )

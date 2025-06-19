@@ -13,6 +13,11 @@ GOTOOLCHAIN := go$(GO_VERSION)
 LOCALBIN ?= $(shell pwd)/bin
 OUTPUT ?= $(shell pwd)/output
 
+# Default to recursive test if GINKGO_PKG not set
+GINKGO_PKG ?= -r
+GINKGO_VERBOSE ?= false
+GINKGO_FLAGS := $(if $(filter 1,$(GINKGO_VERBOSE)),-v) $(GINKGO_PKG) --mod=mod --randomize-all --randomize-suites --cover --coverprofile=coverage.out --coverpkg=./... --output-dir=$(COVERAGE_DIR)
+
 
 GOPATH ?= $(HOME)/go
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
@@ -25,8 +30,10 @@ endif
 GOIMPORTS = $(GOBIN)/goimports
 GINKGO = $(GOBIN)/ginkgo
 
+$(GINKGO):
+	go install github.com/onsi/ginkgo/v2/ginkgo
 
-.PHONY: controller-gen build test
+.PHONY: controller-gen build test ginkgo
 
 $(CONTROLLER_GEN): $(LOCALBIN)
 	test -s $(LOCALBIN)/controller-gen && $(LOCALBIN)/controller-gen --version | grep -q $(CONTROLLER_TOOLS_VERSION) || \
@@ -59,8 +66,8 @@ vet: ## Run go vet against code.
 	go vet ./...
 
 .PHONY: test
-test: fmt vet envtest ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go run github.com/onsi/ginkgo/v2/ginkgo --mod=mod -r --randomize-all --randomize-suites --fail-on-pending --keep-going --cover --coverprofile=coverage.out --coverpkg=./...
+test: fmt vet envtest ginkgo  ## Run tests.
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" ENVTEST_K8S_VERSION="$(ENVTEST_K8S_VERSION)" ginkgo $(GINKGO_FLAGS)
 
 build:
 	go build -mod=mod -o $(OUTPUT)/korn main.go

@@ -144,7 +144,7 @@ func GenerateReleaseManifest() (*releaseapiv1alpha1.Release, error) {
 }
 
 func generateReleaseManifestForFBC() (*releaseapiv1alpha1.Release, error) {
-	candidate, err := GetLatestSnapshotCandidateForRelease()
+	candidate, err := GetSnapshotCandidateForRelease()
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +180,7 @@ func generateReleaseManifestForFBC() (*releaseapiv1alpha1.Release, error) {
 }
 
 func generateReleaseManifestForOperator() (*releaseapiv1alpha1.Release, error) {
-	candidate, err := GetLatestSnapshotCandidateForRelease()
+	candidate, err := GetSnapshotCandidateForRelease()
 	if err != nil {
 		return nil, err
 	}
@@ -217,7 +217,13 @@ func generateReleaseManifestForOperator() (*releaseapiv1alpha1.Release, error) {
 	if err != nil {
 		return nil, err
 	}
+	gkv := releaseapiv1alpha1.SchemeBuilder.GroupVersion.WithKind("Release")
+
 	r := releaseapiv1alpha1.Release{
+		TypeMeta: v1.TypeMeta{
+			Kind:       gkv.Kind,
+			APIVersion: fmt.Sprintf("%s/%s", gkv.Group, gkv.Version),
+		},
 		ObjectMeta: v1.ObjectMeta{
 			GenerateName: fmt.Sprintf("%s-%s-", ApplicationName, EnvironmentName),
 			Namespace:    internal.Namespace,
@@ -234,7 +240,11 @@ func generateReleaseManifestForOperator() (*releaseapiv1alpha1.Release, error) {
 }
 
 func CreateRelease(release releaseapiv1alpha1.Release) (*releaseapiv1alpha1.Release, error) {
-	err := internal.KubeClient.Create(context.Background(), &release, &client.CreateOptions{})
+	opts := client.CreateOptions{}
+	if DryRun {
+		opts.DryRun = append(opts.DryRun, "all")
+	}
+	err := internal.KubeClient.Create(context.Background(), &release, &opts)
 	if err != nil {
 		return nil, err
 	}

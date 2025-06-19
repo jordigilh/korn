@@ -44,6 +44,12 @@ func GetCommand() *cli.Command {
 				DefaultText: "Application where the components are derived from",
 				Destination: &konflux.ApplicationName,
 			},
+			&cli.StringFlag{
+				Name:        "sha",
+				Usage:       "Example: -sha 245fca6109a1f32e5ded0f7e330a85401aa2704a",
+				DefaultText: "Snapshot associated with the commit SHA",
+				Destination: &konflux.SHA,
+			},
 			&cli.BoolFlag{
 				Name:        "candidate",
 				Aliases:     []string{"c"},
@@ -54,27 +60,33 @@ func GetCommand() *cli.Command {
 		},
 		Description: "Retrieves a snapshot or the list of components. If application or version is not provided, it will list all snapshots in the namespace",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			if len(konflux.SnapshotName) == 0 {
-				if cmd.Bool("candidate") {
-					snapshot, err := konflux.GetLatestSnapshotCandidateForRelease()
-					if err != nil {
-						return err
-					}
-					print([]applicationapiv1alpha1.Snapshot{*snapshot})
-					return nil
-				}
-				l, err := konflux.ListSnapshots()
+			if len(konflux.SnapshotName) != 0 {
+				s, err := konflux.GetSnapshot()
 				if err != nil {
 					return err
 				}
-				print(l)
+				print([]applicationapiv1alpha1.Snapshot{*s})
+			}
+			if len(konflux.SHA) == 0 {
+				s, err := konflux.GetSnapshotWithSHA()
+				if err != nil {
+					return err
+				}
+				print([]applicationapiv1alpha1.Snapshot{*s})
+			}
+			if cmd.Bool("candidate") {
+				snapshot, err := konflux.GetSnapshotCandidateForRelease()
+				if err != nil {
+					return err
+				}
+				print([]applicationapiv1alpha1.Snapshot{*snapshot})
 				return nil
 			}
-			s, err := konflux.GetSnapshot()
+			l, err := konflux.ListSnapshots()
 			if err != nil {
 				return err
 			}
-			print([]applicationapiv1alpha1.Snapshot{*s})
+			print(l)
 			return nil
 		},
 	}

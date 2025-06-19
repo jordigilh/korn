@@ -2,6 +2,7 @@ package internal
 
 import (
 	"log"
+	"os"
 	"path/filepath"
 
 	applicationapiv1alpha1 "github.com/konflux-ci/application-api/api/v1alpha1"
@@ -15,12 +16,15 @@ import (
 )
 
 var (
-	Kubeconfig = GetDefaultKubeconfigPath()
-	Namespace  = GetCurrentNamespace()
-	KubeClient client.Client
+	KubeConfigPath = GetDefaultKubeconfigPath()
+	Namespace      string
+	KubeClient     client.Client
 )
 
 func GetDefaultKubeconfigPath() string {
+	if k8sconfig, ok := os.LookupEnv("KUBECONFIG"); ok {
+		return k8sconfig
+	}
 	if home := homedir.HomeDir(); home != "" {
 		return filepath.Join(home, ".kube", "config")
 	}
@@ -48,7 +52,7 @@ func GetCurrentNamespace() string {
 func GetClient() (client.Client, error) {
 
 	// use the current context in kubeconfig
-	config, err := clientcmd.BuildConfigFromFlags("", Kubeconfig)
+	config, err := clientcmd.BuildConfigFromFlags("", KubeConfigPath)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -72,7 +76,7 @@ func GetClient() (client.Client, error) {
 }
 
 func GetDynamicClient() (*dynamic.DynamicClient, error) {
-	config, err := clientcmd.BuildConfigFromFlags("", Kubeconfig)
+	config, err := clientcmd.BuildConfigFromFlags("", KubeConfigPath)
 	if err != nil {
 		panic(err.Error())
 	}

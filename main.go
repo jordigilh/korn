@@ -33,7 +33,7 @@ func main() {
 			&cli.StringFlag{
 				Name:        "kubeconfig",
 				Value:       internal.GetDefaultKubeconfigPath(),
-				Destination: &internal.Kubeconfig,
+				Destination: &internal.KubeConfigPath,
 			},
 			&cli.StringFlag{
 				Name:        "namespace",
@@ -61,6 +61,7 @@ func main() {
 			if err != nil {
 				panic(err)
 			}
+			internal.Namespace = internal.GetCurrentNamespace()
 			return ctx, nil
 		},
 		Commands: []*cli.Command{

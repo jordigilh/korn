@@ -2,12 +2,14 @@ package release
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/jordigilh/korn/internal/konflux"
 	"github.com/sirupsen/logrus"
+
 	"github.com/urfave/cli/v3"
+	mjson "k8s.io/apimachinery/pkg/runtime/serializer/json"
 )
 
 func CreateCommand() *cli.Command {
@@ -51,6 +53,7 @@ func CreateCommand() *cli.Command {
 				Name:        "dryrun",
 				Usage:       "Example: -dryrun ",
 				Value:       false,
+				Destination: &konflux.DryRun,
 				DefaultText: "Outputs the manifest to use when creating a new release. This command is incompatible with the 'wait' flag",
 			},
 			&cli.BoolFlag{
@@ -65,8 +68,14 @@ func CreateCommand() *cli.Command {
 				Aliases:     []string{"f"},
 				Usage:       "Example: -f ",
 				Value:       true,
-				DefaultText: "Force the creation of the release with the last candidate, even if the candidate has been used in a previous release. Useful when retrying for a failed release.",
+				DefaultText: "Force the creation of the release, even if the snapshot has been used in a previous release. Useful when retrying for a failed release. If no filter is provided (snapshot name or hash), it will fetch the last valid candidate.",
 				Destination: &konflux.ForceRelease,
+			},
+			&cli.StringFlag{
+				Name:        "sha",
+				Usage:       "Example: -sha 245fca6109a1f32e5ded0f7e330a85401aa2704a",
+				DefaultText: "Use the snapshot associated to this commit SHA in the release instead of latest candidate",
+				Destination: &konflux.SHA,
 			},
 			&cli.StringFlag{
 				Name:        "releaseType",
@@ -81,6 +90,19 @@ func CreateCommand() *cli.Command {
 					return nil
 				},
 				Destination: &konflux.ReleaseType,
+			},
+			&cli.StringFlag{
+				Name:        "output",
+				Aliases:     []string{"o"},
+				Usage:       "-o <type>",
+				DefaultText: "Print the release manifest: valid entries are 'json' or 'yaml'",
+				Validator: func(val string) error {
+					if val != "json" && val != "yaml" {
+						return fmt.Errorf("invalid output type %s: only 'json' or 'yaml' are supported", val)
+					}
+					return nil
+				},
+				Destination: &konflux.OutputType,
 			},
 			&cli.IntFlag{
 				Name:        "timeout",
@@ -97,13 +119,12 @@ func CreateCommand() *cli.Command {
 			if err != nil {
 				return err
 			}
-			if cmd.Bool("dryrun") {
-				b, err := json.Marshal(m)
-				if err != nil {
-					return err
-				}
-				fmt.Printf("%s\n", string(b))
-				return nil
+			if len(konflux.OutputType) > 0 {
+				s := mjson.NewSerializerWithOptions(
+					mjson.DefaultMetaFactory, nil, nil,
+					mjson.SerializerOptions{Yaml: konflux.OutputType == "yaml", Pretty: true, Strict: true},
+				)
+				return s.Encode(m, os.Stdout)
 			}
 			r, err := konflux.CreateRelease(*m)
 			if err != nil {

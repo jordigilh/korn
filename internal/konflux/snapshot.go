@@ -66,13 +66,12 @@ func ListSnapshots() ([]applicationapiv1alpha1.Snapshot, error) {
 	return list.Items, nil
 }
 
-func GetLatestSnapshotCandidateForRelease() (*applicationapiv1alpha1.Snapshot, error) {
+func GetSnapshotCandidateForRelease() (*applicationapiv1alpha1.Snapshot, error) {
 	if len(SnapshotName) > 0 {
-		snapshot, err := GetSnapshot()
-		if err != nil {
-			return nil, err
-		}
-		return snapshot, nil
+		return GetSnapshot()
+	}
+	if len(SHA) > 0 {
+		return GetSnapshotWithSHA()
 	}
 	releasesForVersion, err := ListSuccessfulReleases()
 	if err != nil {
@@ -218,4 +217,17 @@ func GetSnapshot() (*applicationapiv1alpha1.Snapshot, error) {
 
 	return &snapshot, nil
 
+}
+
+func GetSnapshotWithSHA() (*applicationapiv1alpha1.Snapshot, error) {
+	list := applicationapiv1alpha1.SnapshotList{}
+
+	err := internal.KubeClient.List(context.TODO(), &list, &client.ListOptions{Namespace: internal.Namespace}, &client.MatchingLabels{"pac.test.appstudio.openshift.io/sha": SHA})
+	if err != nil {
+		return nil, err
+	}
+	if len(list.Items) == 0 {
+		return nil, fmt.Errorf("snapshot with SHA %s not found", SHA)
+	}
+	return &list.Items[0], nil
 }

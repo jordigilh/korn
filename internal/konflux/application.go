@@ -28,7 +28,7 @@ func GetApplication() (*applicationapiv1alpha1.Application, error) {
 	err := internal.KubeClient.Get(context.TODO(), types.NamespacedName{Namespace: internal.Namespace, Name: ApplicationName}, &app)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			return nil, fmt.Errorf("application %s not found in namespace %s", internal.Namespace, ApplicationName)
+			return nil, fmt.Errorf("application %s not found in namespace %s", ApplicationName, internal.Namespace)
 		}
 		return nil, err
 	}
