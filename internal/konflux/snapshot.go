@@ -7,11 +7,10 @@ import (
 	"strings"
 
 	"github.com/jordigilh/korn/internal"
-	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/fields"
 
 	applicationapiv1alpha1 "github.com/konflux-ci/application-api/api/v1alpha1"
 	"github.com/sirupsen/logrus"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -67,11 +66,8 @@ func ListSnapshots() ([]applicationapiv1alpha1.Snapshot, error) {
 }
 
 func GetSnapshotCandidateForRelease() (*applicationapiv1alpha1.Snapshot, error) {
-	if len(SnapshotName) > 0 {
+	if len(SnapshotName) > 0 || len(SHA) > 0 {
 		return GetSnapshot()
-	}
-	if len(SHA) > 0 {
-		return GetSnapshotWithSHA()
 	}
 	releasesForVersion, err := ListSuccessfulReleases()
 	if err != nil {
@@ -206,23 +202,19 @@ func validateSnapshotCandicacy(bundleName string, snapshot applicationapiv1alpha
 }
 
 func GetSnapshot() (*applicationapiv1alpha1.Snapshot, error) {
-	snapshot := applicationapiv1alpha1.Snapshot{}
-	err := internal.KubeClient.Get(context.TODO(), types.NamespacedName{Namespace: internal.Namespace, Name: SnapshotName}, &snapshot)
-	if err != nil {
-		if errors.IsNotFound(err) {
-			return nil, fmt.Errorf("snapshot %s not found in namespace %s", SnapshotName, internal.Namespace)
-		}
-		return nil, err
-	}
-
-	return &snapshot, nil
-
-}
-
-func GetSnapshotWithSHA() (*applicationapiv1alpha1.Snapshot, error) {
 	list := applicationapiv1alpha1.SnapshotList{}
-
-	err := internal.KubeClient.List(context.TODO(), &list, &client.ListOptions{Namespace: internal.Namespace}, &client.MatchingLabels{"pac.test.appstudio.openshift.io/sha": SHA})
+	labels := client.MatchingLabels{}
+	if len(ApplicationName) > 0 {
+		labels["appstudio.openshift.io/application"] = ApplicationName
+	}
+	if len(SHA) > 0 {
+		labels["pac.test.appstudio.openshift.io/sha"] = SHA
+	}
+	options := client.ListOptions{Namespace: internal.Namespace}
+	if len(SnapshotName) > 0 {
+		options.FieldSelector = fields.OneTermEqualSelector("metadata.name", SnapshotName)
+	}
+	err := internal.KubeClient.List(context.TODO(), &list, &options, &labels)
 	if err != nil {
 		return nil, err
 	}
@@ -230,4 +222,5 @@ func GetSnapshotWithSHA() (*applicationapiv1alpha1.Snapshot, error) {
 		return nil, fmt.Errorf("snapshot with SHA %s not found", SHA)
 	}
 	return &list.Items[0], nil
+
 }

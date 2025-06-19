@@ -18,8 +18,9 @@ var (
 		ColumnDefinitions: []metav1.TableColumnDefinition{
 			{Name: "Name", Type: "string"},
 			{Name: "Application", Type: "string"},
-			{Name: "Status", Type: "string"},
+			{Name: "SHA", Type: "string"},
 			{Name: "Commit", Type: "string"},
+			{Name: "Status", Type: "string"},
 			{Name: "Age", Type: "string"},
 		},
 	}
@@ -60,19 +61,13 @@ func GetCommand() *cli.Command {
 		},
 		Description: "Retrieves a snapshot or the list of components. If application or version is not provided, it will list all snapshots in the namespace",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			if len(konflux.SnapshotName) != 0 {
+			if len(konflux.SnapshotName) != 0 || len(konflux.SHA) > 0 {
 				s, err := konflux.GetSnapshot()
 				if err != nil {
 					return err
 				}
 				print([]applicationapiv1alpha1.Snapshot{*s})
-			}
-			if len(konflux.SHA) == 0 {
-				s, err := konflux.GetSnapshotWithSHA()
-				if err != nil {
-					return err
-				}
-				print([]applicationapiv1alpha1.Snapshot{*s})
+				return nil
 			}
 			if cmd.Bool("candidate") {
 				snapshot, err := konflux.GetSnapshotCandidateForRelease()
@@ -105,8 +100,9 @@ func print(comps []applicationapiv1alpha1.Snapshot) {
 		rows = append(rows, metav1.TableRow{Cells: []interface{}{
 			v.Name,
 			v.Spec.Application,
-			status,
+			v.Labels["pac.test.appstudio.openshift.io/sha"],
 			v.Annotations["pac.test.appstudio.openshift.io/sha-title"],
+			status,
 			duration.HumanDuration(time.Since(v.CreationTimestamp.Time)),
 		}})
 	}
