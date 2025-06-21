@@ -2,6 +2,7 @@ package konflux
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -160,7 +161,7 @@ func (k Korn) GetSnapshotCandidateForRelease() (*applicationapiv1alpha1.Snapshot
 		comp = &comps[0]
 	}
 	for _, v := range list {
-		if v.Name == lastSnapshot.Name {
+		if lastSnapshot != nil && v.Name == lastSnapshot.Name {
 			break
 		}
 		valid, err := k.validateSnapshotCandicacy(comp.Name, v)
@@ -171,12 +172,16 @@ func (k Korn) GetSnapshotCandidateForRelease() (*applicationapiv1alpha1.Snapshot
 			return &v, nil
 		}
 	}
-	if k.ForceRelease {
+	if k.ForceRelease && lastSnapshot != nil {
 		// When force is enabled, we will at least return the last snapshot used, unless a newer one is detected. This ensures that the command
 		// will always trigger a build
 		return lastSnapshot, nil
 	}
-	return nil, fmt.Errorf("no new valid snapshot candidates found for bundle %s/%s after the one used for the last release %s", k.Namespace, comp.Name, lastSnapshot.Name)
+	msg := fmt.Sprintf("no new valid snapshot candidates found for bundle %s/%s", comp.Namespace, comp.Name)
+	if lastSnapshot != nil {
+		msg += fmt.Sprintf(" after the one used for the last release %s", lastSnapshot.Name)
+	}
+	return nil, errors.New(msg)
 }
 
 func hasSnapshotCompletedSuccessfully(snapshot applicationapiv1alpha1.Snapshot) bool {
