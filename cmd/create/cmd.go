@@ -15,6 +15,7 @@ func Command() *cli.Command {
 		Commands: []*cli.Command{
 			release.CreateCommand(),
 		},
+		DefaultCommand: "-h",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			fmt.Println("added task: ", cmd.Args().First())
 			return nil

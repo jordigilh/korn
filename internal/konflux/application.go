@@ -4,31 +4,29 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/jordigilh/korn/internal"
-
 	applicationapiv1alpha1 "github.com/konflux-ci/application-api/api/v1alpha1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func ListApplications() (*applicationapiv1alpha1.ApplicationList, error) {
+func (k Korn) ListApplications() (*applicationapiv1alpha1.ApplicationList, error) {
 
 	list := applicationapiv1alpha1.ApplicationList{}
-	err := internal.KubeClient.List(context.TODO(), &list, &client.ListOptions{Namespace: internal.Namespace})
+	err := k.KubeClient.List(context.TODO(), &list, &client.ListOptions{Namespace: k.Namespace})
 	if err != nil {
 		return nil, err
 	}
 	return &list, nil
 }
 
-func GetApplication() (*applicationapiv1alpha1.Application, error) {
+func (k Korn) GetApplication() (*applicationapiv1alpha1.Application, error) {
 
 	app := applicationapiv1alpha1.Application{}
-	err := internal.KubeClient.Get(context.TODO(), types.NamespacedName{Namespace: internal.Namespace, Name: ApplicationName}, &app)
+	err := k.KubeClient.Get(context.TODO(), types.NamespacedName{Namespace: k.Namespace, Name: k.ApplicationName}, &app)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			return nil, fmt.Errorf("application %s not found in namespace %s", ApplicationName, internal.Namespace)
+			return nil, fmt.Errorf("application %s not found in namespace %s", k.ApplicationName, k.Namespace)
 		}
 		return nil, err
 	}
@@ -37,14 +35,14 @@ func GetApplication() (*applicationapiv1alpha1.Application, error) {
 
 }
 
-func GetApplicationType() (string, error) {
-	app, err := GetApplication()
+func (k Korn) GetApplicationType() (string, error) {
+	app, err := k.GetApplication()
 	if err != nil {
 		return "", err
 	}
 	appType, ok := app.ObjectMeta.Labels[ApplicationTypeLabel]
 	if !ok {
-		return "", fmt.Errorf("unable to determine application type: application %s/%s does not contain label %s", internal.Namespace, ApplicationName, ApplicationTypeLabel)
+		return "", fmt.Errorf("unable to determine application type: application %s/%s does not contain label %s", k.Namespace, k.ApplicationName, ApplicationTypeLabel)
 	}
 	return appType, nil
 }

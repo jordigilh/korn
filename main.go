@@ -31,16 +31,14 @@ func main() {
 		Description:           "korn is an opinionated application that is designed to simplify the release of an operator in Konflux by extracting the arduous tasks that are necessary to ensure the success of a release. The tool requires the konflux manifests that represent the construct of the operator to be labeled accordingly so that the CLI can navigate through its structures",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
-				Name:        "kubeconfig",
-				Value:       internal.GetDefaultKubeconfigPath(),
-				Destination: &internal.KubeConfigPath,
+				Name:  "kubeconfig",
+				Value: internal.GetDefaultKubeconfigPath(),
 			},
 			&cli.StringFlag{
-				Name:        "namespace",
-				Aliases:     []string{"n"},
-				Usage:       "-namespace <namespace>",
-				Destination: &internal.Namespace,
-				Value:       internal.GetCurrentNamespace(),
+				Name:    "namespace",
+				Aliases: []string{"n"},
+				Usage:   "-namespace <namespace>",
+				Value:   internal.GetCurrentNamespace(),
 			},
 			&cli.BoolFlag{
 				Name:        "debug",
@@ -56,12 +54,18 @@ func main() {
 			} else {
 				logrus.SetLevel(logrus.InfoLevel)
 			}
-			var err error
-			internal.KubeClient, err = internal.GetClient()
+			podClient, err := internal.NewPodmanClient()
 			if err != nil {
-				panic(err)
+				return nil, err
 			}
-			internal.Namespace = internal.GetCurrentNamespace()
+			kubeClient, err := internal.GetClient(cmd.String("kubeconfig"))
+			if err != nil {
+				return nil, err
+			}
+			ctx = context.WithValue(ctx, internal.NamespaceCtxType, cmd.String("namespace"))
+			ctx = context.WithValue(ctx, internal.KubeConfigCtxType, cmd.String("kubeconfig"))
+			ctx = context.WithValue(ctx, internal.PodmanCliCtxType, podClient)
+			ctx = context.WithValue(ctx, internal.KubeCliCtxType, kubeClient)
 			return ctx, nil
 		},
 		Commands: []*cli.Command{

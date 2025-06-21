@@ -15,10 +15,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+type ContextType string
+
 var (
-	KubeConfigPath = GetDefaultKubeconfigPath()
-	Namespace      string
-	KubeClient     client.Client
+	KubeCliCtxType    ContextType = "kubeCli"
+	PodmanCliCtxType  ContextType = "podmanCli"
+	KubeConfigCtxType ContextType = "kubeconfig"
+	NamespaceCtxType  ContextType = "namespace"
 )
 
 func GetDefaultKubeconfigPath() string {
@@ -49,10 +52,10 @@ func GetCurrentNamespace() string {
 	return namespace
 }
 
-func GetClient() (client.Client, error) {
+func GetClient(kubeConfigPath string) (client.Client, error) {
 
 	// use the current context in kubeconfig
-	config, err := clientcmd.BuildConfigFromFlags("", KubeConfigPath)
+	config, err := clientcmd.BuildConfigFromFlags("", kubeConfigPath)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -75,8 +78,8 @@ func GetClient() (client.Client, error) {
 	return client, nil
 }
 
-func GetDynamicClient() (*dynamic.DynamicClient, error) {
-	config, err := clientcmd.BuildConfigFromFlags("", KubeConfigPath)
+func GetDynamicClient(kubeConfigPath string) (*dynamic.DynamicClient, error) {
+	config, err := clientcmd.BuildConfigFromFlags("", kubeConfigPath)
 	if err != nil {
 		panic(err.Error())
 	}

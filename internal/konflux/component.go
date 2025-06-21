@@ -4,17 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/jordigilh/korn/internal"
 	applicationapiv1alpha1 "github.com/konflux-ci/application-api/api/v1alpha1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func ListComponentWithlabels(labels client.MatchingLabels) ([]applicationapiv1alpha1.Component, error) {
+func (k Korn) ListComponentWithlabels(labels client.MatchingLabels) ([]applicationapiv1alpha1.Component, error) {
 
 	list := applicationapiv1alpha1.ComponentList{}
-	err := internal.KubeClient.List(context.TODO(), &list, &client.ListOptions{Namespace: internal.Namespace}, labels)
+	err := k.KubeClient.List(context.TODO(), &list, &client.ListOptions{Namespace: k.Namespace}, labels)
 	if err != nil {
 		return nil, err
 	}
@@ -22,22 +21,22 @@ func ListComponentWithlabels(labels client.MatchingLabels) ([]applicationapiv1al
 
 }
 
-func ListComponents() ([]applicationapiv1alpha1.Component, error) {
-	return ListComponentsWithMatchingLabels(nil)
+func (k Korn) ListComponents() ([]applicationapiv1alpha1.Component, error) {
+	return k.ListComponentsWithMatchingLabels(nil)
 }
 
-func ListComponentsWithMatchingLabels(labels client.MatchingLabels) ([]applicationapiv1alpha1.Component, error) {
+func (k Korn) ListComponentsWithMatchingLabels(labels client.MatchingLabels) ([]applicationapiv1alpha1.Component, error) {
 	list := applicationapiv1alpha1.ComponentList{}
-	err := internal.KubeClient.List(context.TODO(), &list, &client.ListOptions{Namespace: internal.Namespace}, labels)
+	err := k.KubeClient.List(context.TODO(), &list, &client.ListOptions{Namespace: k.Namespace}, labels)
 	if err != nil {
 		return nil, err
 	}
 	ret := []applicationapiv1alpha1.Component{}
-	if len(ApplicationName) == 0 {
+	if len(k.ApplicationName) == 0 {
 		return list.Items, nil
 	}
 	for _, c := range list.Items {
-		if c.Spec.Application == ApplicationName {
+		if c.Spec.Application == k.ApplicationName {
 			ret = append(ret, c)
 		}
 	}
@@ -45,12 +44,12 @@ func ListComponentsWithMatchingLabels(labels client.MatchingLabels) ([]applicati
 
 }
 
-func GetComponent() (*applicationapiv1alpha1.Component, error) {
+func (k Korn) GetComponent() (*applicationapiv1alpha1.Component, error) {
 	component := applicationapiv1alpha1.Component{}
-	err := internal.KubeClient.Get(context.TODO(), types.NamespacedName{Namespace: internal.Namespace, Name: ComponentName}, &component)
+	err := k.KubeClient.Get(context.TODO(), types.NamespacedName{Namespace: k.Namespace, Name: k.ComponentName}, &component)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			return nil, fmt.Errorf("component %s not found in namespace %s", ComponentName, internal.Namespace)
+			return nil, fmt.Errorf("component %s not found in namespace %s", k.ComponentName, k.Namespace)
 		}
 		return nil, err
 	}
@@ -72,23 +71,23 @@ const (
 	fbcApplicationType      = "fbc"
 )
 
-func GetBundleComponentForVersion() (*applicationapiv1alpha1.Component, error) {
-	l, err := ListComponentsWithMatchingLabels(client.MatchingLabels{ComponentTypeLabel: componentBundleType})
+func (k Korn) GetBundleComponentForVersion() (*applicationapiv1alpha1.Component, error) {
+	l, err := k.ListComponentsWithMatchingLabels(client.MatchingLabels{ComponentTypeLabel: componentBundleType})
 	if err != nil {
 		return nil, err
 	}
 	if len(l) == 0 {
-		return nil, fmt.Errorf("no bundle component found for application %s/%s with labels %s=bundle", internal.Namespace, ApplicationName, ComponentTypeLabel)
+		return nil, fmt.Errorf("no bundle component found for application %s/%s with labels %s=bundle", k.Namespace, k.ApplicationName, ComponentTypeLabel)
 	}
 	var comps []applicationapiv1alpha1.Component
 	for _, c := range l {
 		// filter out the ones that belong to this app
-		if c.Spec.Application == ApplicationName {
+		if c.Spec.Application == k.ApplicationName {
 			comps = append(comps, c)
 		}
 	}
 	if len(comps) > 1 {
-		return nil, fmt.Errorf("more than one bundle component found for application %s/%s: %+v", internal.Namespace, ApplicationName, comps)
+		return nil, fmt.Errorf("more than one bundle component found for application %s/%s: %+v", k.Namespace, k.ApplicationName, comps)
 	}
 	return &comps[0], nil
 }

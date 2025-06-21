@@ -6,45 +6,46 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/jordigilh/korn/internal"
 	"k8s.io/apimachinery/pkg/fields"
 
+	"github.com/blang/semver/v4"
 	applicationapiv1alpha1 "github.com/konflux-ci/application-api/api/v1alpha1"
 	"github.com/sirupsen/logrus"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func ListSnapshots() ([]applicationapiv1alpha1.Snapshot, error) {
+func (k Korn) ListSnapshots() ([]applicationapiv1alpha1.Snapshot, error) {
 	list := applicationapiv1alpha1.SnapshotList{}
 	labels := client.MatchingLabels{"pac.test.appstudio.openshift.io/event-type": "push"}
-	if len(ApplicationName) > 0 {
-		appType, err := GetApplicationType()
+	if len(k.ApplicationName) > 0 {
+		appType, err := k.GetApplicationType()
 		if err != nil {
 			return nil, err
 		}
 		var comp *applicationapiv1alpha1.Component
-		if appType == "operator" {
-			comp, err = GetBundleComponentForVersion()
+		switch appType {
+		case "operator":
+			comp, err = k.GetBundleComponentForVersion()
 			if err != nil {
 				return nil, err
 			}
-		} else if appType == "fbc" {
+		case "fbc":
 			// Get the first and only component
-			comps, err := ListComponents()
+			comps, err := k.ListComponents()
 			if err != nil {
 				return nil, err
 			}
 			if len(comps) == 0 {
-				return nil, fmt.Errorf("application %s/%s does not have any component associated", internal.Namespace, ApplicationName)
+				return nil, fmt.Errorf("application %s/%s does not have any component associated", k.Namespace, k.ApplicationName)
 			}
 			if len(comps) > 1 {
-				return nil, fmt.Errorf("application %s/%s of type FBC can only have 1 component per Konflux recommendation ", internal.Namespace, ApplicationName)
+				return nil, fmt.Errorf("application %s/%s of type FBC can only have 1 component per Konflux recommendation ", k.Namespace, k.ApplicationName)
 			}
 			comp = &comps[0]
 		}
 		labels["appstudio.openshift.io/component"] = comp.Name
 	}
-	err := internal.KubeClient.List(context.TODO(), &list, &client.ListOptions{Namespace: internal.Namespace}, labels)
+	err := k.KubeClient.List(context.TODO(), &list, &client.ListOptions{Namespace: k.Namespace}, labels)
 	if err != nil {
 		return nil, err
 	}
@@ -65,48 +66,96 @@ func ListSnapshots() ([]applicationapiv1alpha1.Snapshot, error) {
 	return list.Items, nil
 }
 
-func GetSnapshotCandidateForRelease() (*applicationapiv1alpha1.Snapshot, error) {
-	if len(SnapshotName) > 0 || len(SHA) > 0 {
-		return GetSnapshot()
+func (k Korn) GetLatestSnapshotByVersion() (*applicationapiv1alpha1.Snapshot, error) {
+	l, err := k.ListSnapshots()
+	if err != nil {
+		return nil, err
 	}
-	releasesForVersion, err := ListSuccessfulReleases()
+	semVer, err := semver.ParseTolerant(k.Version)
+	if err != nil {
+		return nil, err
+	}
+	defer k.GitClient.Cleanup()
+	for _, s := range l {
+		v, ok, err := k.getVersionForSnapshot(s)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			logrus.Debugf("inconsistent version for snapshot %s/%s", s.Namespace, s.Name)
+			continue
+		}
+		if semVer.Equals(*v) {
+			return &s, nil
+		}
+	}
+	return nil, fmt.Errorf("no snapshot found for application %s/%s with version %s", k.Namespace, k.ApplicationName, k.Version)
+}
+
+func (k Korn) getVersionForSnapshot(snapshot applicationapiv1alpha1.Snapshot) (*semver.Version, bool, error) {
+	var version *semver.Version
+
+	for _, c := range snapshot.Spec.Components {
+		if c.Source.GitSource == nil {
+			logrus.Debugf("git source reference for component %s is missing", c.Name)
+			continue
+		}
+		v, err := k.GitClient.GetVersion(c.Source.GitSource.URL, c.Source.GitSource.Revision)
+		if err != nil {
+			return nil, false, fmt.Errorf("failed to fetch file content: %v", err)
+		}
+		if version == nil {
+			version = v
+		} else if !version.Equals(*v) {
+			return nil, false, nil
+		}
+	}
+	return version, true, nil
+}
+
+func (k Korn) GetSnapshotCandidateForRelease() (*applicationapiv1alpha1.Snapshot, error) {
+	if len(k.SnapshotName) > 0 || len(k.SHA) > 0 {
+		return k.GetSnapshot()
+	}
+	releasesForVersion, err := k.ListSuccessfulReleases()
 	if err != nil {
 		return nil, err
 	}
 	var lastSnapshot *applicationapiv1alpha1.Snapshot
 	if len(releasesForVersion) > 0 {
 		// Copy the last successful snapshot as the cutoff version
-		SnapshotName = releasesForVersion[0].Spec.Snapshot
-		lastSnapshot, err = GetSnapshot()
+		k.SnapshotName = releasesForVersion[0].Spec.Snapshot
+		lastSnapshot, err = k.GetSnapshot()
 		if err != nil {
 			return nil, err
 		}
 	}
-	list, err := ListSnapshots()
+	list, err := k.ListSnapshots()
 	if err != nil {
 		return nil, err
 	}
-	appType, err := GetApplicationType()
+	appType, err := k.GetApplicationType()
 	if err != nil {
 		return nil, err
 	}
 	var comp *applicationapiv1alpha1.Component
-	if appType == "operator" {
-		comp, err = GetBundleComponentForVersion()
+	switch appType {
+	case "operator":
+		comp, err = k.GetBundleComponentForVersion()
 		if err != nil {
 			return nil, err
 		}
-	} else if appType == "fbc" {
+	case "fbc":
 		// Get the first and only component
-		comps, err := ListComponents()
+		comps, err := k.ListComponents()
 		if err != nil {
 			return nil, err
 		}
 		if len(comps) == 0 {
-			return nil, fmt.Errorf("application %s/%s does not have any component associated", internal.Namespace, ApplicationName)
+			return nil, fmt.Errorf("application %s/%s does not have any component associated", k.Namespace, k.ApplicationName)
 		}
 		if len(comps) > 1 {
-			return nil, fmt.Errorf("application %s/%s of type FBC can only have 1 component per Konflux recommendation ", internal.Namespace, ApplicationName)
+			return nil, fmt.Errorf("application %s/%s of type FBC can only have 1 component per Konflux recommendation ", k.Namespace, k.ApplicationName)
 		}
 		comp = &comps[0]
 	}
@@ -114,7 +163,7 @@ func GetSnapshotCandidateForRelease() (*applicationapiv1alpha1.Snapshot, error) 
 		if v.Name == lastSnapshot.Name {
 			break
 		}
-		valid, err := validateSnapshotCandicacy(comp.Name, v)
+		valid, err := k.validateSnapshotCandicacy(comp.Name, v)
 		if err != nil {
 			return nil, err
 		}
@@ -122,12 +171,12 @@ func GetSnapshotCandidateForRelease() (*applicationapiv1alpha1.Snapshot, error) 
 			return &v, nil
 		}
 	}
-	if ForceRelease {
+	if k.ForceRelease {
 		// When force is enabled, we will at least return the last snapshot used, unless a newer one is detected. This ensures that the command
 		// will always trigger a build
 		return lastSnapshot, nil
 	}
-	return nil, fmt.Errorf("no new valid snapshot candidates found for bundle %s/%s after the one used for the last release %s", internal.Namespace, comp.Name, lastSnapshot.Name)
+	return nil, fmt.Errorf("no new valid snapshot candidates found for bundle %s/%s after the one used for the last release %s", k.Namespace, comp.Name, lastSnapshot.Name)
 }
 
 func hasSnapshotCompletedSuccessfully(snapshot applicationapiv1alpha1.Snapshot) bool {
@@ -148,7 +197,7 @@ func GetComponentPullspecFromSnapshot(snapshot applicationapiv1alpha1.Snapshot, 
 	return "", fmt.Errorf("component reference %s in snapshot %s not found", componentName, snapshot.Name)
 }
 
-func validateSnapshotCandicacy(bundleName string, snapshot applicationapiv1alpha1.Snapshot) (bool, error) {
+func (k Korn) validateSnapshotCandicacy(bundleName string, snapshot applicationapiv1alpha1.Snapshot) (bool, error) {
 	if !hasSnapshotCompletedSuccessfully(snapshot) {
 		logrus.Debugf("snapshot %s has not finished running yet, discarding", snapshot.Name)
 		return false, nil
@@ -159,11 +208,11 @@ func validateSnapshotCandicacy(bundleName string, snapshot applicationapiv1alpha
 		return false, err
 	}
 
-	bundleData, err := internal.GetImageData(bundleSpec)
+	bundleData, err := k.PodClient.GetImageData(bundleSpec)
 	if err != nil {
 		return false, err
 	}
-	comps, err := ListComponents()
+	comps, err := k.ListComponents()
 	if err != nil {
 		return false, err
 	}
@@ -189,7 +238,7 @@ func validateSnapshotCandicacy(bundleName string, snapshot applicationapiv1alpha
 			logrus.Infof("component %s pullspec mismatch in bundle %s, snapshot is not a candidate for release", c.Name, bundleName)
 			return false, nil
 		}
-		componentData, err := internal.GetImageData(bundleSpec)
+		componentData, err := k.PodClient.GetImageData(bundleSpec)
 		if err != nil {
 			return false, err
 		}
@@ -201,25 +250,25 @@ func validateSnapshotCandicacy(bundleName string, snapshot applicationapiv1alpha
 	return true, nil
 }
 
-func GetSnapshot() (*applicationapiv1alpha1.Snapshot, error) {
+func (k Korn) GetSnapshot() (*applicationapiv1alpha1.Snapshot, error) {
 	list := applicationapiv1alpha1.SnapshotList{}
 	labels := client.MatchingLabels{}
-	if len(ApplicationName) > 0 {
-		labels["appstudio.openshift.io/application"] = ApplicationName
+	if len(k.ApplicationName) > 0 {
+		labels["appstudio.openshift.io/application"] = k.ApplicationName
 	}
-	if len(SHA) > 0 {
-		labels["pac.test.appstudio.openshift.io/sha"] = SHA
+	if len(k.SHA) > 0 {
+		labels["pac.test.appstudio.openshift.io/sha"] = k.SHA
 	}
-	options := client.ListOptions{Namespace: internal.Namespace}
-	if len(SnapshotName) > 0 {
-		options.FieldSelector = fields.OneTermEqualSelector("metadata.name", SnapshotName)
+	options := client.ListOptions{Namespace: k.Namespace}
+	if len(k.SnapshotName) > 0 {
+		options.FieldSelector = fields.OneTermEqualSelector("metadata.name", k.SnapshotName)
 	}
-	err := internal.KubeClient.List(context.TODO(), &list, &options, &labels)
+	err := k.KubeClient.List(context.TODO(), &list, &options, &labels)
 	if err != nil {
 		return nil, err
 	}
 	if len(list.Items) == 0 {
-		return nil, fmt.Errorf("snapshot with SHA %s not found", SHA)
+		return nil, fmt.Errorf("snapshot with SHA %s not found", k.SHA)
 	}
 	return &list.Items[0], nil
 

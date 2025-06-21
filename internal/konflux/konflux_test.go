@@ -1,7 +1,6 @@
 package konflux_test
 
 import (
-	"github.com/jordigilh/korn/internal"
 	"github.com/jordigilh/korn/internal/konflux"
 	applicationapiv1alpha1 "github.com/konflux-ci/application-api/api/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
@@ -18,6 +17,7 @@ var _ = When("retrieving applications", func() {
 		fakeClientBuilder *fake.ClientBuilder
 		scheme            = createFakeScheme()
 		ns                = newNamespace("default")
+		korn              = konflux.Korn{}
 	)
 
 	BeforeEach(func() {
@@ -28,12 +28,12 @@ var _ = When("retrieving applications", func() {
 
 		if len(objs) > 0 {
 			fakeClientBuilder = fakeClientBuilder.WithRuntimeObjects(objs...)
-			konflux.ApplicationName = appName
+			korn.ApplicationName = appName
 		}
-		internal.KubeClient = fakeClientBuilder.Build()
-		internal.Namespace = "default"
+		korn.KubeClient = fakeClientBuilder.Build()
+		korn.Namespace = "default"
 		Expect(k8sClient).To(BeNil())
-		apps, err := konflux.GetApplication()
+		apps, err := korn.GetApplication()
 		if hasError {
 			Expect(err).To(HaveOccurred())
 		} else {

@@ -22,38 +22,39 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func ListReleases() ([]releaseapiv1alpha1.Release, error) {
+func (k Korn) ListReleases() ([]releaseapiv1alpha1.Release, error) {
 	labels := client.MatchingLabels{}
-	if len(ApplicationName) > 0 {
-		appType, err := GetApplicationType()
+	if len(k.ApplicationName) > 0 {
+		appType, err := k.GetApplicationType()
 		if err != nil {
 			return nil, err
 		}
 		var comp *applicationapiv1alpha1.Component
-		if appType == "operator" {
-			comp, err = GetBundleComponentForVersion()
+		switch appType {
+		case "operator":
+			comp, err = k.GetBundleComponentForVersion()
 			if err != nil {
 				return nil, err
 			}
-		} else if appType == "fbc" {
+		case "fbc":
 			// Get the first and only component
-			comps, err := ListComponents()
+			comps, err := k.ListComponents()
 			if err != nil {
 				return nil, err
 			}
 			if len(comps) == 0 {
-				return nil, fmt.Errorf("application %s/%s does not have any component associated", internal.Namespace, ApplicationName)
+				return nil, fmt.Errorf("application %s/%s does not have any component associated", k.Namespace, k.ApplicationName)
 			}
 			if len(comps) > 1 {
-				return nil, fmt.Errorf("application %s/%s of type FBC can only have 1 component per Konflux recommendation ", internal.Namespace, ApplicationName)
+				return nil, fmt.Errorf("application %s/%s of type FBC can only have 1 component per Konflux recommendation ", k.Namespace, k.ApplicationName)
 			}
 			comp = &comps[0]
 		}
-		labels["appstudio.openshift.io/application"] = ApplicationName
+		labels["appstudio.openshift.io/application"] = k.ApplicationName
 		labels["appstudio.openshift.io/component"] = comp.Name
 	}
 	list := releaseapiv1alpha1.ReleaseList{}
-	err := internal.KubeClient.List(context.TODO(), &list, &client.ListOptions{Namespace: internal.Namespace}, labels)
+	err := k.KubeClient.List(context.TODO(), &list, &client.ListOptions{Namespace: k.Namespace}, labels)
 	if err != nil {
 		return nil, err
 	}
@@ -64,9 +65,9 @@ func ListReleases() ([]releaseapiv1alpha1.Release, error) {
 	return list.Items, nil
 }
 
-func ListSuccessfulReleases() ([]releaseapiv1alpha1.Release, error) {
+func (k Korn) ListSuccessfulReleases() ([]releaseapiv1alpha1.Release, error) {
 
-	l, err := ListReleases()
+	l, err := k.ListReleases()
 	if err != nil {
 		return nil, err
 	}
@@ -81,12 +82,12 @@ func ListSuccessfulReleases() ([]releaseapiv1alpha1.Release, error) {
 	return releases, nil
 }
 
-func GetRelease() (*releaseapiv1alpha1.Release, error) {
+func (k Korn) GetRelease() (*releaseapiv1alpha1.Release, error) {
 	rel := releaseapiv1alpha1.Release{}
-	err := internal.KubeClient.Get(context.TODO(), types.NamespacedName{Namespace: internal.Namespace, Name: ReleaseName}, &rel)
+	err := k.KubeClient.Get(context.TODO(), types.NamespacedName{Namespace: k.Namespace, Name: k.ReleaseName}, &rel)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			return nil, fmt.Errorf("release %s not found in namespace %s", ReleaseName, internal.Namespace)
+			return nil, fmt.Errorf("release %s not found in namespace %s", k.ReleaseName, k.Namespace)
 		}
 		return nil, err
 	}
@@ -109,9 +110,9 @@ const (
 
 type releaseType string
 
-func getBundleVersionFromSnapshot(snapshot applicationapiv1alpha1.Snapshot) (string, error) {
+func (k Korn) getBundleVersionFromSnapshot(snapshot applicationapiv1alpha1.Snapshot) (string, error) {
 
-	bundle, err := GetBundleComponentForVersion()
+	bundle, err := k.GetBundleComponentForVersion()
 	if err != nil {
 		return "", err
 	}
@@ -119,7 +120,7 @@ func getBundleVersionFromSnapshot(snapshot applicationapiv1alpha1.Snapshot) (str
 	if err != nil {
 		return "", err
 	}
-	bundleData, err := internal.GetImageData(imgPullSpec)
+	bundleData, err := k.PodClient.GetImageData(imgPullSpec)
 	if err != nil {
 		return "", err
 	}
@@ -129,27 +130,27 @@ func getBundleVersionFromSnapshot(snapshot applicationapiv1alpha1.Snapshot) (str
 	return "", fmt.Errorf("label 'version' not found in bundle %s/%s", bundle.Namespace, bundle.Name)
 }
 
-func GenerateReleaseManifest() (*releaseapiv1alpha1.Release, error) {
-	appType, err := GetApplicationType()
+func (k Korn) GenerateReleaseManifest() (*releaseapiv1alpha1.Release, error) {
+	appType, err := k.GetApplicationType()
 	if err != nil {
 		return nil, err
 	}
 	if appType == operatorApplicationType {
-		return generateReleaseManifestForOperator()
+		return k.generateReleaseManifestForOperator()
 	}
 	if appType == fbcApplicationType {
-		return generateReleaseManifestForFBC()
+		return k.generateReleaseManifestForFBC()
 	}
-	return nil, fmt.Errorf("undefined application type %s for application %s/%s", appType, internal.Namespace, ApplicationName)
+	return nil, fmt.Errorf("undefined application type %s for application %s/%s", appType, k.Namespace, k.ApplicationName)
 }
 
-func generateReleaseManifestForFBC() (*releaseapiv1alpha1.Release, error) {
-	candidate, err := GetSnapshotCandidateForRelease()
+func (k Korn) generateReleaseManifestForFBC() (*releaseapiv1alpha1.Release, error) {
+	candidate, err := k.GetSnapshotCandidateForRelease()
 	if err != nil {
 		return nil, err
 	}
-	rtype := releaseType(ReleaseType)
-	rp, err := getReleasePlanForEnvWithVersion(EnvironmentName)
+	rtype := releaseType(k.ReleaseType)
+	rp, err := k.getReleasePlanForEnvWithVersion(k.EnvironmentName)
 	if err != nil {
 		return nil, err
 	}
@@ -165,8 +166,8 @@ func generateReleaseManifestForFBC() (*releaseapiv1alpha1.Release, error) {
 	}
 	r := releaseapiv1alpha1.Release{
 		ObjectMeta: v1.ObjectMeta{
-			GenerateName: fmt.Sprintf("%s-%s-", ApplicationName, EnvironmentName),
-			Namespace:    internal.Namespace,
+			GenerateName: fmt.Sprintf("%s-%s-", k.ApplicationName, k.EnvironmentName),
+			Namespace:    k.Namespace,
 		},
 		Spec: releaseapiv1alpha1.ReleaseSpec{
 			Snapshot:    candidate.Name,
@@ -179,19 +180,19 @@ func generateReleaseManifestForFBC() (*releaseapiv1alpha1.Release, error) {
 	return &r, nil
 }
 
-func generateReleaseManifestForOperator() (*releaseapiv1alpha1.Release, error) {
-	candidate, err := GetSnapshotCandidateForRelease()
+func (k Korn) generateReleaseManifestForOperator() (*releaseapiv1alpha1.Release, error) {
+	candidate, err := k.GetSnapshotCandidateForRelease()
 	if err != nil {
 		return nil, err
 	}
-	rtype := releaseType(ReleaseType)
-	appType, err := GetApplicationType()
+	rtype := releaseType(k.ReleaseType)
+	appType, err := k.GetApplicationType()
 	if err != nil {
 		return nil, err
 	}
 	if appType == operatorApplicationType {
 		// Only fetch the release version when releasing an operator application type (bundle, etc...)
-		bundleVersion, err := getBundleVersionFromSnapshot(*candidate)
+		bundleVersion, err := k.getBundleVersionFromSnapshot(*candidate)
 		if err != nil {
 			return nil, err
 		}
@@ -203,7 +204,7 @@ func generateReleaseManifestForOperator() (*releaseapiv1alpha1.Release, error) {
 			rtype = bugReleaseType
 		}
 	}
-	rp, err := getReleasePlanForEnvWithVersion(EnvironmentName)
+	rp, err := k.getReleasePlanForEnvWithVersion(k.EnvironmentName)
 	if err != nil {
 		return nil, err
 	}
@@ -225,8 +226,8 @@ func generateReleaseManifestForOperator() (*releaseapiv1alpha1.Release, error) {
 			APIVersion: fmt.Sprintf("%s/%s", gkv.Group, gkv.Version),
 		},
 		ObjectMeta: v1.ObjectMeta{
-			GenerateName: fmt.Sprintf("%s-%s-", ApplicationName, EnvironmentName),
-			Namespace:    internal.Namespace,
+			GenerateName: fmt.Sprintf("%s-%s-", k.ApplicationName, k.EnvironmentName),
+			Namespace:    k.Namespace,
 		},
 		Spec: releaseapiv1alpha1.ReleaseSpec{
 			Snapshot:    candidate.Name,
@@ -239,22 +240,22 @@ func generateReleaseManifestForOperator() (*releaseapiv1alpha1.Release, error) {
 	return &r, nil
 }
 
-func CreateRelease(release releaseapiv1alpha1.Release) (*releaseapiv1alpha1.Release, error) {
+func (k Korn) CreateRelease(release releaseapiv1alpha1.Release) (*releaseapiv1alpha1.Release, error) {
 	opts := client.CreateOptions{}
-	if DryRun {
+	if k.DryRun {
 		opts.DryRun = append(opts.DryRun, "all")
 	}
-	err := internal.KubeClient.Create(context.Background(), &release, &opts)
+	err := k.KubeClient.Create(context.Background(), &release, &opts)
 	if err != nil {
 		return nil, err
 	}
 	return &release, nil
 }
 
-func WaitForReleaseToComplete(release releaseapiv1alpha1.Release) error {
+func (k Korn) WaitForReleaseToComplete(release releaseapiv1alpha1.Release, kubeConfigPath string) error {
 
 	start := time.Now()
-	dynamicClient, err := internal.GetDynamicClient()
+	dynamicClient, err := internal.GetDynamicClient(kubeConfigPath)
 	if err != nil {
 		return nil
 	}
@@ -262,12 +263,12 @@ func WaitForReleaseToComplete(release releaseapiv1alpha1.Release) error {
 		Group:    "appstudio.redhat.com",
 		Version:  "v1alpha1",
 		Resource: "releases",
-	}).Namespace(internal.Namespace).Watch(context.TODO(), v1.SingleObject(v1.ObjectMeta{Name: release.Name, Namespace: internal.Namespace}))
+	}).Namespace(k.Namespace).Watch(context.TODO(), v1.SingleObject(v1.ObjectMeta{Name: release.Name, Namespace: k.Namespace}))
 	if err != nil {
 		return err
 	}
 
-	timer := time.NewTimer(time.Duration(WaitForTimeout) * time.Minute)
+	timer := time.NewTimer(time.Duration(k.WaitForTimeout) * time.Minute)
 
 	go func() {
 		<-timer.C
@@ -315,7 +316,7 @@ func WaitForReleaseToComplete(release releaseapiv1alpha1.Release) error {
 			logrus.Debugf("Release %s/%s still ongoing after %s", release.Namespace, release.Name, duration.HumanDuration(time.Since(start)))
 		}
 	}
-	fmt.Printf("Timeout of %d minute(s) reached waiting for release %s/%s to complete", WaitForTimeout, release.Namespace, release.Name)
+	fmt.Printf("Timeout of %d minute(s) reached waiting for release %s/%s to complete", k.WaitForTimeout, release.Namespace, release.Name)
 	return nil
 
 }
