@@ -21,5 +21,5 @@ type Korn struct {
 	SHA             string
 	KubeClient      client.Client
 	PodClient       internal.ImageClient
-	GitClient       internal.GetRevisionVersioner
+	GitClient       internal.GitCommitVersioner
 }

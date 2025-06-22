@@ -84,7 +84,7 @@ func (g *GitClient) cloneRepository(repoURL string) error {
 	return nil
 }
 
-type GetRevisionVersioner interface {
+type GitCommitVersioner interface {
 	GetVersion(commitHash, filePath string) (*semver.Version, error)
 	Cleanup()
 }
@@ -98,7 +98,7 @@ type repositoryReference struct {
 	file string
 }
 
-func NewGitClient() GetRevisionVersioner {
+func NewGitClient() GitCommitVersioner {
 	return &GitClient{
 		refs: make(map[string]repositoryReference),
 	}
