@@ -1,9 +1,6 @@
 package get
 
 import (
-	"context"
-	"fmt"
-
 	"github.com/jordigilh/korn/cmd/get/application"
 	"github.com/jordigilh/korn/cmd/get/component"
 	"github.com/jordigilh/korn/cmd/get/release"
@@ -20,10 +17,6 @@ func Command() *cli.Command {
 			component.GetCommand(),
 			snapshot.GetCommand(),
 			release.GetCommand(),
-		},
-		Action: func(ctx context.Context, cmd *cli.Command) error {
-			fmt.Println("added task: ", cmd.Args().First())
-			return nil
 		},
 	}
 }
