@@ -1,0 +1,10 @@
+---
+type: RHBA
+issues:
+  fixed:
+    - id: RHOSP-12345
+      source: issues.redhat.com
+    - id: RHDH-4135
+      source: issues.redhat.com
+    - id: 31433635
+      source: bugzilla.redhat.com

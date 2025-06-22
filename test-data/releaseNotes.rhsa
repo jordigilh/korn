@@ -1,0 +1,10 @@
+---
+type: RHSA
+cves:
+  - key: CVE-2020-3435
+    component: must-gather
+  - key: CVE-2021-3456
+    component: controller
+references:
+  - https://docs.redhat.com/some/example/release-notes
+  - https://access.redhat.com/security/vulnerabilities/RHSB-2099-999

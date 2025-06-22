@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"reflect"
 
 	"github.com/jordigilh/korn/internal"
 	"github.com/jordigilh/korn/internal/konflux"
@@ -12,6 +13,7 @@ import (
 	"github.com/urfave/cli/v3"
 	mjson "k8s.io/apimachinery/pkg/runtime/serializer/json"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 )
 
 var (
@@ -89,20 +91,6 @@ func CreateCommand() *cli.Command {
 				Destination: &korn.SHA,
 			},
 			&cli.StringFlag{
-				Name:        "releaseType",
-				Aliases:     []string{"rt"},
-				Value:       "RHEA",
-				Usage:       "-rt <release type>",
-				DefaultText: "Release type to use in the releaseNotes: RHEA, RHBA or RHSA. Defaults to RHEA",
-				Validator: func(val string) error {
-					if val != "RHEA" && val != "RHBA" && val != "RHSA" {
-						return fmt.Errorf("invalid release type %s: only 'RHEA', 'RHBA' or 'RHSA' are supported", val)
-					}
-					return nil
-				},
-				Destination: &korn.ReleaseType,
-			},
-			&cli.StringFlag{
 				Name:        "output",
 				Aliases:     []string{"o"},
 				Usage:       "-o <type>",
@@ -122,6 +110,40 @@ func CreateCommand() *cli.Command {
 				DefaultText: "Time out in minutes for the wait for operation to complete",
 				Destination: &korn.WaitForTimeout,
 				Value:       60,
+			},
+			&cli.StringFlag{
+				Name:        "releaseNotes",
+				Aliases:     []string{"rn"},
+				Usage:       "-releaseNotes 'FILE'",
+				DefaultText: "Path to the file containing release notes to be attached to the Release manifest in YAML format",
+				Validator: func(val string) error {
+					b, err := os.ReadFile(val)
+					if err != nil {
+						return err
+					}
+					rn := konflux.ReleaseNote{}
+					err = yaml.Unmarshal(b, &rn)
+					if err != nil {
+						return err
+					}
+					if reflect.DeepEqual(rn, konflux.ReleaseNote{}) {
+						return fmt.Errorf("no content found for release notes in %s", val)
+					}
+					return nil
+				},
+				Action: func(ctx context.Context, c *cli.Command, s string) error {
+					b, err := os.ReadFile(c.String("releaseNotes"))
+					if err != nil {
+						return err
+					}
+					rn := konflux.ReleaseNote{}
+					err = yaml.Unmarshal(b, &rn)
+					if err != nil {
+						return err
+					}
+					korn.ReleaseNotes = &rn
+					return nil
+				},
 			},
 		},
 		Description: "Creates a release or the list of components. If application or version is not provided, it will list all snapshots in the namespace",

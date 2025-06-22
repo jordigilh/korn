@@ -95,21 +95,6 @@ func (k Korn) GetRelease() (*releaseapiv1alpha1.Release, error) {
 	return &rel, nil
 }
 
-type releaseNote struct {
-	Type       releaseType       `json:"type"`
-	Issues     map[string]string `json:"issues,omitempty"`
-	CVEs       map[string]string `json:"cves,omitempty"`
-	References []string          `json:"reference,omitempty"`
-}
-
-const (
-	bugReleaseType      releaseType = "RHBA"
-	securityReleaseType releaseType = "RHSA"
-	featureReleaseType  releaseType = "RHEA"
-)
-
-type releaseType string
-
 func (k Korn) getBundleVersionFromSnapshot(snapshot applicationapiv1alpha1.Snapshot) (string, error) {
 
 	bundle, err := k.GetBundleComponentForVersion()
@@ -149,13 +134,13 @@ func (k Korn) generateReleaseManifestForFBC() (*releaseapiv1alpha1.Release, erro
 	if err != nil {
 		return nil, err
 	}
-	rtype := releaseType(k.ReleaseType)
+	rtype := featureReleaseType
 	rp, err := k.getReleasePlanForEnvWithVersion(k.EnvironmentName)
 	if err != nil {
 		return nil, err
 	}
 
-	notes := map[string]releaseNote{
+	notes := map[string]ReleaseNote{
 		"releaseNotes": {
 			Type: rtype,
 		},
@@ -185,35 +170,36 @@ func (k Korn) generateReleaseManifestForOperator() (*releaseapiv1alpha1.Release,
 	if err != nil {
 		return nil, err
 	}
-	rtype := releaseType(k.ReleaseType)
-	appType, err := k.GetApplicationType()
-	if err != nil {
-		return nil, err
-	}
-	if appType == operatorApplicationType {
-		// Only fetch the release version when releasing an operator application type (bundle, etc...)
-		bundleVersion, err := k.getBundleVersionFromSnapshot(*candidate)
+	notes := map[string]ReleaseNote{}
+	if k.ReleaseNotes == nil {
+		rtype := featureReleaseType
+		appType, err := k.GetApplicationType()
 		if err != nil {
 			return nil, err
 		}
-		semv, err := semver.ParseTolerant(bundleVersion)
-		if err != nil {
-			return nil, err
+		if appType == operatorApplicationType {
+			// Only fetch the release version when releasing an operator application type (bundle, etc...)
+			bundleVersion, err := k.getBundleVersionFromSnapshot(*candidate)
+			if err != nil {
+				return nil, err
+			}
+			semv, err := semver.ParseTolerant(bundleVersion)
+			if err != nil {
+				return nil, err
+			}
+			if semv.Patch != 0 {
+				rtype = bugReleaseType
+			}
 		}
-		if semv.Patch != 0 {
-			rtype = bugReleaseType
-		}
+		notes["releaseNotes"] = ReleaseNote{Type: rtype}
+	} else {
+		notes["releaseNotes"] = *k.ReleaseNotes
 	}
 	rp, err := k.getReleasePlanForEnvWithVersion(k.EnvironmentName)
 	if err != nil {
 		return nil, err
 	}
 
-	notes := map[string]releaseNote{
-		"releaseNotes": {
-			Type: rtype,
-		},
-	}
 	bnotes, err := json.Marshal(notes)
 	if err != nil {
 		return nil, err
