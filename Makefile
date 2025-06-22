@@ -69,5 +69,5 @@ vet: ## Run go vet against code.
 test: fmt vet envtest ginkgo  ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" ENVTEST_K8S_VERSION="$(ENVTEST_K8S_VERSION)" ginkgo $(GINKGO_FLAGS)
 
-build:
+build: fmt vet
 	go build -mod=mod -o $(OUTPUT)/korn main.go
