@@ -10,6 +10,7 @@ type Korn struct {
 	ApplicationName string
 	ComponentName   string
 	ReleaseName     string
+	ReleasePlanName string
 	EnvironmentName string
 	SnapshotName    string
 	Version         string

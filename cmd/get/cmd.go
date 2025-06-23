@@ -4,6 +4,7 @@ import (
 	"github.com/jordigilh/korn/cmd/get/application"
 	"github.com/jordigilh/korn/cmd/get/component"
 	"github.com/jordigilh/korn/cmd/get/release"
+	"github.com/jordigilh/korn/cmd/get/releaseplan"
 	"github.com/jordigilh/korn/cmd/get/snapshot"
 	"github.com/urfave/cli/v3"
 )
@@ -17,6 +18,7 @@ func Command() *cli.Command {
 			component.GetCommand(),
 			snapshot.GetCommand(),
 			release.GetCommand(),
+			releaseplan.GetCommand(),
 		},
 	}
 }

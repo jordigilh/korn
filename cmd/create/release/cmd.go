@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"strconv"
 
 	"github.com/jordigilh/korn/internal"
 	"github.com/jordigilh/korn/internal/konflux"
@@ -17,7 +18,7 @@ import (
 )
 
 var (
-	korn = konflux.Korn{}
+	korn = konflux.Korn{WaitForTimeout: 60, EnvironmentName: "staging"}
 )
 
 func CreateCommand() *cli.Command {
@@ -34,67 +35,88 @@ func CreateCommand() *cli.Command {
 			korn.PodClient = ctx.Value(internal.PodmanCliCtxType).(internal.ImageClient)
 			return ctx, nil
 		},
+		MutuallyExclusiveFlags: []cli.MutuallyExclusiveFlags{
+			cli.MutuallyExclusiveFlags{
+				Flags: [][]cli.Flag{
+					[]cli.Flag{
+						&cli.BoolFlag{
+							Name:        "dryrun",
+							Usage:       "Outputs the manifest to use when creating a new release. This command is incompatible with the 'wait' flag. ",
+							Value:       false,
+							Destination: &korn.DryRun,
+							DefaultText: strconv.FormatBool(korn.DryRun),
+						},
+						&cli.BoolFlag{
+							Name:        "wait",
+							Aliases:     []string{"w"},
+							Usage:       "When creating a release, this command will instruct the CLI to wait for the completion of the release pipeline and return the results. This command is incompatible with the 'dryrun' flag",
+							Value:       true,
+							DefaultText: strconv.FormatBool(true),
+						},
+					},
+				},
+			},
+		},
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:        "application",
 				Aliases:     []string{"app"},
-				Usage:       "-application <application_name>",
-				DefaultText: "Application where the releases are derived from",
+				Usage:       "Application name where the releases are derived from.",
+				DefaultText: korn.ApplicationName,
 				Destination: &korn.ApplicationName,
 			},
 			&cli.StringFlag{
 				Name:    "environment",
 				Aliases: []string{"env"},
-				Usage:   "Example: -env staging",
+				Usage:   "Type of environment targeting the release. It can be either 'staging' or 'production'.",
 				Validator: func(val string) error {
 					if val != "staging" && val != "production" {
 						return fmt.Errorf("invalid value %s: only 'staging' or 'production' supported", val)
 					}
 					return nil
 				},
-				Value:       "staging",
-				DefaultText: "Captures the target environment: staging or production",
+				DefaultText: korn.EnvironmentName,
 				Destination: &korn.EnvironmentName,
 			},
 			&cli.StringFlag{
 				Name:        "snapshot",
-				Usage:       "-snapshot <application_name>",
-				DefaultText: "Use this snapshot for the release instead of the latest candidate",
+				Usage:       "Use this snapshot for the release instead of the latest candidate.",
+				DefaultText: "",
 				Destination: &korn.SnapshotName,
 			},
 			&cli.BoolFlag{
 				Name:        "dryrun",
-				Usage:       "Example: -dryrun ",
+				Usage:       "Outputs the manifest to use when creating a new release. This command is incompatible with the 'wait' flag. ",
 				Value:       false,
 				Destination: &korn.DryRun,
-				DefaultText: "Outputs the manifest to use when creating a new release. This command is incompatible with the 'wait' flag",
+				DefaultText: strconv.FormatBool(korn.DryRun),
 			},
 			&cli.BoolFlag{
 				Name:        "wait",
 				Aliases:     []string{"w"},
-				Usage:       "Example: -w ",
+				Usage:       "When creating a release, this command will instruct the CLI to wait for the completion of the release pipeline and return the results. This command is incompatible with the 'dryrun' flag",
 				Value:       true,
-				DefaultText: "When creating a release, this command will instruct the CLI to wait for the completion of the release pipeline and return the results. This command is incompatible with the 'dryrun' flag",
+				DefaultText: strconv.FormatBool(true),
 			},
 			&cli.BoolFlag{
 				Name:        "force",
 				Aliases:     []string{"f"},
-				Usage:       "Example: -f ",
-				Value:       true,
-				DefaultText: "Force the creation of the release, even if the snapshot has been used in a previous release. Useful when retrying for a failed release. If no filter is provided (snapshot name or hash), it will fetch the last valid candidate.",
+				Usage:       "Force the creation of the release, even if the snapshot has been used in a previous release. Useful when retrying for a failed release. If no filter is provided (snapshot name or hash), it will fetch the last valid candidate.",
+				Value:       false,
+				DefaultText: strconv.FormatBool(korn.ForceRelease),
 				Destination: &korn.ForceRelease,
 			},
 			&cli.StringFlag{
 				Name:        "sha",
-				Usage:       "Example: -sha 245fca6109a1f32e5ded0f7e330a85401aa2704a",
-				DefaultText: "Use the snapshot associated to this commit SHA in the release instead of latest candidate",
+				Usage:       "Use the snapshot associated to this commit SHA in the release instead of latest candidate",
+				DefaultText: korn.SHA,
 				Destination: &korn.SHA,
 			},
 			&cli.StringFlag{
 				Name:        "output",
 				Aliases:     []string{"o"},
-				Usage:       "-o <type>",
-				DefaultText: "Print the release manifest: valid entries are 'json' or 'yaml'",
+				Usage:       "Print the release manifest: valid entries are 'json' or 'yaml'.",
+				DefaultText: korn.OutputType,
 				Validator: func(val string) error {
 					if val != "json" && val != "yaml" {
 						return fmt.Errorf("invalid output type %s: only 'json' or 'yaml' are supported", val)
@@ -106,16 +128,15 @@ func CreateCommand() *cli.Command {
 			&cli.IntFlag{
 				Name:        "timeout",
 				Aliases:     []string{"t"},
-				Usage:       "-timeout timeout in minutes",
-				DefaultText: "Time out in minutes for the wait for operation to complete",
+				Usage:       "Time out in minutes for the wait for operation to complete",
+				DefaultText: fmt.Sprintf("%d", korn.WaitForTimeout),
 				Destination: &korn.WaitForTimeout,
-				Value:       60,
+				Value:       korn.WaitForTimeout,
 			},
 			&cli.StringFlag{
-				Name:        "releaseNotes",
-				Aliases:     []string{"rn"},
-				Usage:       "-releaseNotes 'FILE'",
-				DefaultText: "Path to the file containing release notes to be attached to the Release manifest in YAML format",
+				Name:    "releaseNotes",
+				Aliases: []string{"rn"},
+				Usage:   "Path to the file containing release notes to be attached to the Release manifest in YAML format",
 				Validator: func(val string) error {
 					b, err := os.ReadFile(val)
 					if err != nil {

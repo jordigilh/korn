@@ -1,4 +1,4 @@
-package component
+package releaseplan
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 
 	"github.com/jordigilh/korn/internal"
 	"github.com/jordigilh/korn/internal/konflux"
-	applicationapiv1alpha1 "github.com/konflux-ci/application-api/api/v1alpha1"
+	releaseapiv1alpha1 "github.com/konflux-ci/release-service/api/v1alpha1"
 	"github.com/urfave/cli/v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/duration"
@@ -19,8 +19,10 @@ var (
 	table = &metav1.Table{
 		ColumnDefinitions: []metav1.TableColumnDefinition{
 			{Name: "Name", Type: "string"},
-			{Name: "Type", Type: "string"},
-			{Name: "Bundle Label", Type: "string"},
+			{Name: "Application", Type: "string"},
+			{Name: "Environment", Type: "string"},
+			{Name: "Release Plan Admission", Type: "string"},
+			{Name: "Active", Type: "string"},
 			{Name: "Age", Type: "string"},
 		},
 	}
@@ -31,13 +33,12 @@ var (
 func GetCommand() *cli.Command {
 
 	return &cli.Command{
-		Name:                  "component",
-		Aliases:               []string{"comp", "comps", "components"},
-		Usage:                 "get components",
-		EnableShellCompletion: true,
+		Name:    "releaseplan",
+		Aliases: []string{"rp", "releaseplans"},
+		Usage:   "get releaseplans",
 		Arguments: []cli.Argument{&cli.StringArg{
-			Name:        "component",
-			Destination: &korn.ComponentName,
+			Name:        "releasePlan",
+			Destination: &korn.ReleasePlanName,
 		}},
 		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
 			korn.Namespace = ctx.Value(internal.NamespaceCtxType).(string)
@@ -49,36 +50,39 @@ func GetCommand() *cli.Command {
 				Name:        "application",
 				Aliases:     []string{"app"},
 				Usage:       "-application <application_name>",
-				DefaultText: "Application where the components are derived from",
+				DefaultText: "Application where the release plans belong to",
 				Destination: &korn.ApplicationName,
-			}},
-		Description: "Retrieves a component or the list of components. If application is not provided, it will list all components in the namespace ",
+			},
+		},
+		Description: "Retrieves a release plan. If application is not provided, it will list all plans in the namespace",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			if len(korn.ComponentName) == 0 {
-				l, err := korn.ListComponents()
+			if len(korn.ReleasePlanName) == 0 {
+				l, err := korn.ListReleasePlans()
 				if err != nil {
 					return err
 				}
 				print(l)
 				return nil
 			}
-			a, err := korn.GetComponent()
+			r, err := korn.GetReleasePlan()
 			if err != nil {
 				return err
 			}
-			print([]applicationapiv1alpha1.Component{*a})
+			print([]releaseapiv1alpha1.ReleasePlan{*r})
 			return nil
 		},
 	}
 }
 
-func print(comps []applicationapiv1alpha1.Component) {
+func print(releasePlans []releaseapiv1alpha1.ReleasePlan) {
 	rows := []metav1.TableRow{}
-	for _, v := range comps {
+	for _, v := range releasePlans {
 		rows = append(rows, metav1.TableRow{Cells: []interface{}{
 			v.Name,
-			v.Labels[konflux.ComponentTypeLabel],
-			v.Labels[konflux.BundleReferenceLabel],
+			v.Spec.Application,
+			v.Labels[konflux.EnvironmentLabel],
+			v.Status.ReleasePlanAdmission.Name,
+			v.Status.ReleasePlanAdmission.Active,
 			duration.HumanDuration(time.Since(v.CreationTimestamp.Time)),
 		}})
 	}

@@ -10,17 +10,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func (k Korn) ListComponentWithlabels(labels client.MatchingLabels) ([]applicationapiv1alpha1.Component, error) {
-
-	list := applicationapiv1alpha1.ComponentList{}
-	err := k.KubeClient.List(context.TODO(), &list, &client.ListOptions{Namespace: k.Namespace}, labels)
-	if err != nil {
-		return nil, err
-	}
-	return list.Items, nil
-
-}
-
 func (k Korn) ListComponents() ([]applicationapiv1alpha1.Component, error) {
 	return k.ListComponentsWithMatchingLabels(nil)
 }
@@ -59,10 +48,10 @@ func (k Korn) GetComponent() (*applicationapiv1alpha1.Component, error) {
 }
 
 const (
-	ComponentTypeLabel      = "korn.redhat.io/component"
-	ApplicationTypeLabel    = "korn.redhat.io/application"
-	releaseEnvironmentLabel = "korn.redhat.io/environment"
-	bundleReferenceLabel    = "korn.redhat.io/bundle-label"
+	ComponentTypeLabel   = "korn.redhat.io/component"
+	ApplicationTypeLabel = "korn.redhat.io/application"
+	EnvironmentLabel     = "korn.redhat.io/environment"
+	BundleReferenceLabel = "korn.redhat.io/bundle-label"
 
 	componentBundleType         = "bundle"
 	releaseEnvironmentStageType = "staging"

@@ -225,13 +225,13 @@ func (k Korn) validateSnapshotCandicacy(bundleName string, snapshot applicationa
 		if c.Name == bundleName {
 			continue
 		}
-		compLabel, ok := c.Labels[bundleReferenceLabel]
+		compLabel, ok := c.Labels[BundleReferenceLabel]
 		if !ok {
-			return false, fmt.Errorf("label %s not found in component %s/%s", bundleReferenceLabel, snapshot.Namespace, snapshot.Spec.Application)
+			return false, fmt.Errorf("label %s not found in component %s/%s", BundleReferenceLabel, snapshot.Namespace, snapshot.Spec.Application)
 		}
 		labelSpec, ok := bundleData.Labels[compLabel]
 		if !ok {
-			logrus.Infof("missing label %s for component %s in bundle container image %s", bundleReferenceLabel, c.Name, bundleSpec)
+			logrus.Infof("missing label %s for component %s in bundle container image %s", BundleReferenceLabel, c.Name, bundleSpec)
 			return false, nil
 		}
 		snapshotSpec, err := GetComponentPullspecFromSnapshot(snapshot, c.Name)
