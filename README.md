@@ -10,6 +10,7 @@
 - [Installation](#installation)
 - [Quick Start](#quick-start)
 - [Commands](#commands)
+  - [Namespace Handling](#namespace-handling)
 - [Operator Onboarding](#operator-onboarding)
 - [Get Snapshot](#get-snapshot)
 - [Release Process](#release-process)
@@ -81,27 +82,44 @@ cp output/korn /usr/local/bin/  # or any directory in your PATH
 | Command | Description | Example |
 |---------|-------------|---------|
 | `get application` | List all applications with their types | `korn get application` |
-| `get component` | List components for an application | `korn get component -app operator-1-0` |
-| `get snapshot` | Get latest valid snapshot for an application | `korn get snapshot -app operator-1-0` |
-| `get release` | List releases for an application | `korn get release -app operator-1-0` |
-| `get releaseplan` | List release plans for an application | `korn get releaseplan -app operator-1-0` |
+| `get component` | List components for an application | `korn get component --app operator-1-0` |
+| `get snapshot` | Get latest valid snapshot for an application | `korn get snapshot --app operator-1-0` |
+| `get release` | List releases for an application | `korn get release --app operator-1-0` |
+| `get releaseplan` | List release plans for an application | `korn get releaseplan --app operator-1-0` |
 
 ### Create Commands
 
 | Command | Description | Example |
 |---------|-------------|---------|
-| `create release` | Create a new release | `korn create release -app operator-1-0 -environment staging` |
+| `create release` | Create a new release | `korn create release --app operator-1-0 --environment staging` |
 
 ### Wait Commands
 
 | Command | Description | Example |
 |---------|-------------|---------|
-| `waitfor release` | Wait for release completion | `korn waitfor release -name my-release` |
+| `waitfor release` | Wait for release completion | `korn waitfor release my-release` |
 
 For detailed command options:
 ```bash
 korn <command> -h
 ```
+
+### Namespace Handling
+
+All Korn commands operate within a Kubernetes namespace context. By default, Korn uses the current namespace from your Kubernetes configuration (the namespace set in your current context). You can override this behavior using the global `--namespace` flag:
+
+```bash
+# Use current namespace from kubectl context (default)
+korn get application
+
+# Override to specific namespace
+korn get application --namespace my-operator-namespace
+
+# Set namespace for all commands in session
+kubectl config set-context --current --namespace=my-operator-namespace
+```
+
+This ensures that Korn operations are scoped to the appropriate namespace where your Konflux resources are deployed.
 
 ## Operator Onboarding
 
@@ -109,29 +127,90 @@ To use Korn with your operator, you need to label existing Konflux resources app
 
 ### Why Labels Are Required
 
-Korn operates on existing Konflux resources (Applications, Components, ReleasePlans) that don't inherently contain information about their role in the operator release process. Konflux provides the infrastructure and enforces its own validations through Enterprise Contract Plans, but it doesn't distinguish between different types of applications or understand operator-specific concepts like bundle components.
+Korn operates on existing Konflux resources (Applications, Components, ReleasePlans) that don't inherently contain information about their role in the operator release process. While Konflux provides the infrastructure and enforces its own validations through Enterprise Contract Plans, it doesn't distinguish between different types of applications or understand operator-specific concepts like bundle components.
 
-**Korn uses labels as a discovery and classification mechanism to:**
+**Korn uses labels as a discovery and classification mechanism** to bridge this gap and enable intelligent automation of operator releases.
 
-#### 1. **Application Type Classification** (`korn.redhat.io/application`)
-- **Problem**: Konflux treats all applications equally, but operator and FBC applications require different validation strategies
-- **Solution**: Label applications as `operator` or `fbc` to apply appropriate validation rules
-- **Impact**: Enables Korn to perform operator-specific validations (CSV checks, image consistency) vs. simpler FBC validations
+#### Application Type Classification (`korn.redhat.io/application`)
 
-#### 2. **Component Role Identification** (`korn.redhat.io/component`)
-- **Problem**: In operator applications, multiple components exist (controller, console-plugin, bundle, etc.) but Korn needs to identify the bundle specifically
-- **Solution**: Label the bundle component as `bundle` type
-- **Impact**: Allows Korn to locate the bundle container image for CSV parsing and validation
+Konflux treats all applications equally, but operator and FBC applications require fundamentally different validation strategies. Operator applications contain multiple interdependent components with complex image reference relationships that must be validated against CSV manifests. FBC applications, in contrast, are simpler single-component catalog containers that require only basic image existence checks.
 
-#### 3. **Bundle-Component Mapping** (`korn.redhat.io/bundle-label`)
-- **Problem**: Korn must verify that image references in the bundle's CSV match the actual component images in the snapshot
-- **Solution**: Each component specifies which label name to look for in the bundle's container image
-- **Impact**: Enables automated verification that bundle references match snapshot reality, preventing deployment failures
+By labeling applications as `operator` or `fbc`, Korn can apply the appropriate validation rules automatically. This enables sophisticated operator-specific validations like CSV parsing and image consistency checks for operator applications, while applying simpler validation logic for FBC applications.
 
-#### 4. **Environment Targeting** (`korn.redhat.io/environment`)
-- **Problem**: Applications typically have multiple ReleasePlans (staging, production) but Korn needs to select the correct one
-- **Solution**: Label ReleasePlans as `staging` or `production`
-- **Impact**: Allows users to specify target environment in commands without knowing ReleasePlan names
+**Example:**
+```bash
+# Operator application with multiple components requiring CSV validation
+oc label application operator-1-0 korn.redhat.io/application=operator
+
+# FBC application with single catalog component requiring basic checks
+oc label application fbc-v4-15 korn.redhat.io/application=fbc
+```
+
+When Korn processes `operator-1-0`, it performs bundle CSV parsing, image digest validation, and version consistency checks. For `fbc-v4-15`, it only verifies the catalog image exists and is accessible.
+
+#### Component Role Identification (`korn.redhat.io/component`)
+
+Within operator applications, multiple components typically exist representing different parts of the operator ecosystem (controller, console-plugin, bundle, must-gather, etc.). However, Korn needs to specifically identify the bundle component since it contains the CSV manifests that define image references for all other components.
+
+The `bundle` label designation allows Korn to locate the correct bundle container image for CSV parsing and validation. Without this identification, Korn would have no way to determine which component contains the critical metadata needed for validation.
+
+**Example:**
+```bash
+# Multiple components in operator-1-0 application
+oc get components
+NAME                            AGE
+controller-rhel9-operator-1-0   67d
+console-plugin-1-0              67d
+operator-bundle-1-0             67d
+must-gather-1-0                 67d
+
+# Label the bundle component specifically
+oc label component operator-bundle-1-0 korn.redhat.io/component=bundle
+```
+
+Now when Korn searches for CSV manifests, it knows to pull and inspect the `operator-bundle-1-0` container image, ignoring the other components that don't contain bundle metadata.
+
+#### Bundle-Component Mapping (`korn.redhat.io/bundle-label`)
+
+One of Korn's most critical validations involves verifying that image references declared in the bundle's CSV match the actual component images present in the snapshot. This prevents deployment failures where the bundle references images with different digests than what's actually being released.
+
+Each component specifies which label name to look for in the bundle's container image through the `bundle-label` annotation. This creates a direct mapping between logical component names and the physical labels in the bundle's Dockerfile, enabling automated verification that bundle references match snapshot reality.
+
+**Example:**
+```bash
+# Components specify their bundle label names
+oc label component controller-rhel9-operator-1-0 korn.redhat.io/bundle-label=controller-rhel9-operator
+oc label component console-plugin-1-0 korn.redhat.io/bundle-label=console-plugin
+
+# Corresponding labels in bundle.Dockerfile
+LABEL controller-rhel9-operator="registry.stage.redhat.io/my-operator/controller@sha256:abc123..."
+LABEL console-plugin="registry.stage.redhat.io/my-operator/console-plugin@sha256:def456..."
+```
+
+Korn validates that the snapshot contains `controller-rhel9-operator-1-0` with digest `sha256:abc123...` and `console-plugin-1-0` with digest `sha256:def456...`, ensuring bundle and snapshot consistency.
+
+#### Environment Targeting (`korn.redhat.io/environment`)
+
+Most applications maintain separate ReleasePlans for different environments (staging, production, development), but users shouldn't need to memorize specific ReleasePlan names or manage environment-to-plan mappings manually.
+
+By labeling ReleasePlans with their target environment (`staging` or `production`), Korn can automatically select the appropriate plan based on user intent. This enables simple commands like `korn create release --environment staging` without requiring users to specify exact ReleasePlan names.
+
+**Example:**
+```bash
+# Multiple ReleasePlans with complex names
+oc get releaseplan
+NAME                                  APPLICATION    TARGET
+operator-release-plan-staging-1-0     operator-1-0   rhtap-releng-tenant
+operator-release-plan-production-1-0  operator-1-0   rhtap-releng-tenant
+
+# Label them by environment for easy targeting
+oc label releaseplan operator-release-plan-staging-1-0 korn.redhat.io/environment=staging
+oc label releaseplan operator-release-plan-production-1-0 korn.redhat.io/environment=production
+
+# Simple command now works
+korn create release --app operator-1-0 --environment staging
+# Automatically finds and uses operator-release-plan-staging-1-0
+```
 
 ### Label Schema
 
@@ -195,17 +274,7 @@ Korn operates on existing Konflux resources (Applications, Components, ReleasePl
 
 ### 1. Application Labels
 
-Label applications to distinguish between operator and FBC (File Based Catalog) types:
-
-```bash
-# For operator applications
-oc label application operator-1-0 korn.redhat.io/application=operator
-oc label application operator-1-1 korn.redhat.io/application=operator
-
-# For FBC applications
-oc label application fbc-v4-15 korn.redhat.io/application=fbc
-oc label application fbc-v4-16 korn.redhat.io/application=fbc
-```
+Apply the `korn.redhat.io/application` label to distinguish between operator and FBC applications (see [Application Type Classification](#application-type-classification-kornredhatioApplication) for detailed explanation and examples).
 
 **Verify labeling:**
 ```bash
@@ -223,20 +292,7 @@ operator-1-1   operator   66d
 
 ### 2. Component Labels
 
-#### Bundle Component
-Identify the bundle component in operator applications:
-
-```bash
-oc label component operator-bundle-1-0 korn.redhat.io/component=bundle
-```
-
-#### Bundle Label Mapping
-For each component referenced in the bundle, specify the label name used in the bundle's Dockerfile:
-
-```bash
-oc label component controller-rhel9-operator-1-0 korn.redhat.io/bundle-label=controller-rhel9-operator
-oc label component console-plugin-1-0 korn.redhat.io/bundle-label=console-plugin
-```
+Apply component labels to identify bundle components and establish bundle-component mapping (see [Component Role Identification](#component-role-identification-kornredhatioComponent) and [Bundle-Component Mapping](#bundle-component-mapping-kornredhatiotbundle-label) for detailed explanations and examples).
 
 **Verify component labeling:**
 ```bash
@@ -253,17 +309,7 @@ operator-bundle-1-0             bundle                               67d
 
 ### 3. Release Plan Labels
 
-Label release plans to identify target environments:
-
-```bash
-# Staging plans
-oc label releaseplan operator-staging-1-0 korn.redhat.io/environment=staging
-oc label releaseplan fbc-v4-15-release-as-staging-fbc korn.redhat.io/environment=staging
-
-# Production plans
-oc label releaseplan operator-production-1-0 korn.redhat.io/environment=production
-oc label releaseplan fbc-v4-15-release-as-production-fbc korn.redhat.io/environment=production
-```
+Apply environment labels to ReleasePlans for automatic environment targeting (see [Environment Targeting](#environment-targeting-kornredhatioEnvironment) for detailed explanation and examples).
 
 **Verify release plan labeling:**
 ```bash
@@ -553,31 +599,24 @@ Before creating a release, Korn:
 
 ## Examples
 
-### Complete Onboarding Example
+### Complete Onboarding Workflow
 
 ```bash
-# 1. Label applications
-oc label application operator-1-0 korn.redhat.io/application=operator
-oc label application fbc-v4-15 korn.redhat.io/application=fbc
+# 1. Apply all required labels (see "Why Labels Are Required" section for commands)
+# - Application labels (operator/fbc)
+# - Component labels (bundle identification and mapping)
+# - ReleasePlan labels (staging/production)
 
-# 2. Label components
-oc label component operator-bundle-1-0 korn.redhat.io/component=bundle
-oc label component controller-rhel9-operator-1-0 korn.redhat.io/bundle-label=controller-rhel9-operator
-oc label component console-plugin-1-0 korn.redhat.io/bundle-label=console-plugin
-
-# 3. Label release plans
-oc label releaseplan operator-staging-1-0 korn.redhat.io/environment=staging
-oc label releaseplan operator-production-1-0 korn.redhat.io/environment=production
-
-# 4. Verify setup
+# 2. Verify setup
 korn get application
 korn get component -app operator-1-0
 korn get releaseplan -app operator-1-0
 
-# 5. Check latest snapshot
+# 3. Validate snapshots
 korn get snapshot -app operator-1-0
+korn get snapshot -app operator-1-0 --candidate
 
-# 6. Create release
+# 4. Create release
 korn create release -app operator-1-0 -environment staging -releaseNotes release-notes.yaml
 ```
 
@@ -588,22 +627,22 @@ korn create release -app operator-1-0 -environment staging -releaseNotes release
 korn get application
 
 # Examine specific application components
-korn get component -app operator-1-0
+korn get component --app operator-1-0
 
 # Get the latest valid snapshot
-korn get snapshot -app operator-1-0
+korn get snapshot --app operator-1-0
 
 # Review release plans
-korn get releaseplan -app operator-1-0
+korn get releaseplan --app operator-1-0
 
 # Create staging release
-korn create release -app operator-1-0 -environment staging
+korn create release --app operator-1-0 --environment staging
 
 # Wait for release completion (optional)
-korn waitfor release -name <release-name>
+korn waitfor release <release-name>
 
 # After staging validation, promote to production
-korn create release -app operator-1-0 -environment production
+korn create release --app operator-1-0 --environment production
 ```
 
 ## Contributing
