@@ -361,7 +361,7 @@ korn get snapshot [SNAPSHOT_NAME] [FLAGS]
 | `--application` | `--app` | Application name to filter snapshots | `--app operator-1-0` |
 | `--sha` | - | Get snapshot associated with specific commit SHA | `--sha 245fca6109a1f32e5ded0f7e330a85401aa2704a` |
 | `--version` | - | Get latest snapshot matching version in bundle's label | `--version v0.0.11` |
-| `--candidate` | `-c` | Filter snapshots suitable for next release | `--candidate` |
+| `--candidate` | `-c` | Get the latest valid candidate snapshot for next release | `--candidate` |
 
 #### Basic Examples
 
