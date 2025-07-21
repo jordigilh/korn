@@ -36,9 +36,9 @@ func CreateCommand() *cli.Command {
 			return ctx, nil
 		},
 		MutuallyExclusiveFlags: []cli.MutuallyExclusiveFlags{
-			cli.MutuallyExclusiveFlags{
+			{
 				Flags: [][]cli.Flag{
-					[]cli.Flag{
+					{
 						&cli.BoolFlag{
 							Name:        "dryrun",
 							Usage:       "Outputs the manifest to use when creating a new release. This command is incompatible with the 'wait' flag. ",
