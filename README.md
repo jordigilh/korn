@@ -11,8 +11,8 @@
 - [Quick Start](#quick-start)
 - [Commands](#commands)
 - [Operator Onboarding](#operator-onboarding)
-- [Release Process](#release-process)
 - [Get Snapshot](#get-snapshot)
+- [Release Process](#release-process)
 - [Validation Rules](#validation-rules)
 - [Examples](#examples)
 - [Contributing](#contributing)
@@ -212,6 +212,121 @@ COPY LICENSE /licenses/licenses
 
 > **Note:** Consider using automated tools like nudges to keep these labels synchronized with actual image digests.
 
+## Get Snapshot
+
+The `get snapshot` command allows you to retrieve snapshots for validation and inspection before creating releases.
+
+### Command Syntax
+
+```bash
+korn get snapshot [SNAPSHOT_NAME] [FLAGS]
+```
+
+#### Available Flags
+
+| Flag | Alias | Description | Example |
+|------|-------|-------------|---------|
+| `--application` | `--app` | Application name to filter snapshots | `--app operator-1-0` |
+| `--sha` | - | Get snapshot associated with specific commit SHA | `--sha 245fca6109a1f32e5ded0f7e330a85401aa2704a` |
+| `--version` | - | Get latest snapshot matching version in bundle's label | `--version v0.0.11` |
+| `--candidate` | `-c` | Filter snapshots suitable for next release | `--candidate` |
+
+#### Basic Examples
+
+**List all snapshots in namespace:**
+```bash
+korn get snapshot
+```
+
+**Get snapshots for specific application:**
+```bash
+korn get snapshot --app operator-1-0
+```
+
+**Get latest release candidate snapshot:**
+```bash
+korn get snapshot --app operator-1-0 --candidate
+```
+
+**Get specific snapshot by name:**
+```bash
+korn get snapshot snapshot-sample-xyz123
+```
+
+#### Advanced Examples
+
+**Get snapshot by commit SHA:**
+```bash
+korn get snapshot \
+  --app operator-1-0 \
+  --sha 245fca6109a1f32e5ded0f7e330a85401aa2704a
+```
+
+**Get latest snapshot for specific version:**
+```bash
+korn get snapshot \
+  --app operator-1-0 \
+  --version v1.0.15
+```
+
+**Get release candidate with application filter:**
+```bash
+korn get snapshot \
+  --app operator-1-0 \
+  --candidate
+```
+
+#### Output Format
+
+The command outputs a table with the following columns:
+
+| Column | Description |
+|--------|-------------|
+| **Name** | Snapshot name |
+| **Application** | Associated application name |
+| **SHA** | Git commit SHA |
+| **Commit** | Commit message title |
+| **Status** | Test status (Succeeded/Failed/Pending) |
+| **Age** | Time since snapshot creation |
+
+#### Example Output
+
+```
+NAME                           APPLICATION    SHA      COMMIT                    STATUS     AGE
+snapshot-sample-xyz123         operator-1-0   abc123   Fix security vulnerability Succeeded  2d
+snapshot-sample-def456         operator-1-0   def456   Update dependencies       Failed     1d
+snapshot-sample-ghi789         operator-1-0   ghi789   Add new feature          Succeeded  12h
+```
+
+#### Use Cases
+
+**Pre-release validation:**
+```bash
+# Check latest candidate before creating release
+korn get snapshot --app operator-1-0 --candidate
+
+# Verify specific snapshot status
+korn get snapshot snapshot-sample-xyz123
+```
+
+**Debugging and troubleshooting:**
+```bash
+# Find snapshot for specific commit
+korn get snapshot --app operator-1-0 --sha abc1234def5678
+
+# Check all snapshots for application
+korn get snapshot --app operator-1-0
+```
+
+**Version-specific releases:**
+```bash
+# Find snapshot for specific version
+korn get snapshot --app operator-1-0 --version v1.0.15
+
+# Use in release creation
+korn create release --app operator-1-0 --environment staging --snapshot $(korn get snapshot --app operator-1-0 --candidate | tail -n 1 | awk '{print $1}')
+```
+
 ## Release Process
 
 ### Creating a Release
@@ -332,121 +447,6 @@ Before creating a release, Korn:
 3. **Checks image consistency** between snapshot and bundle
 4. **Verifies version labels** across components
 5. **Creates the release object** with the validated snapshot
-
-## Get Snapshot
-
-The `get snapshot` command allows you to retrieve snapshots for validation and inspection before creating releases.
-
-### Command Syntax
-
-```bash
-korn get snapshot [SNAPSHOT_NAME] [FLAGS]
-```
-
-#### Available Flags
-
-| Flag | Alias | Description | Example |
-|------|-------|-------------|---------|
-| `--application` | `--app` | Application name to filter snapshots | `--app operator-1-0` |
-| `--sha` | - | Get snapshot associated with specific commit SHA | `--sha 245fca6109a1f32e5ded0f7e330a85401aa2704a` |
-| `--version` | - | Get latest snapshot matching version in bundle's label | `--version v0.0.11` |
-| `--candidate` | `-c` | Filter snapshots suitable for next release | `--candidate` |
-
-#### Basic Examples
-
-**List all snapshots in namespace:**
-```bash
-korn get snapshot
-```
-
-**Get snapshots for specific application:**
-```bash
-korn get snapshot --app operator-1-0
-```
-
-**Get latest release candidate snapshot:**
-```bash
-korn get snapshot --app operator-1-0 --candidate
-```
-
-**Get specific snapshot by name:**
-```bash
-korn get snapshot snapshot-sample-xyz123
-```
-
-#### Advanced Examples
-
-**Get snapshot by commit SHA:**
-```bash
-korn get snapshot \
-  --app operator-1-0 \
-  --sha 245fca6109a1f32e5ded0f7e330a85401aa2704a
-```
-
-**Get latest snapshot for specific version:**
-```bash
-korn get snapshot \
-  --app operator-1-0 \
-  --version v1.0.15
-```
-
-**Get release candidate with application filter:**
-```bash
-korn get snapshot \
-  --app operator-1-0 \
-  --candidate
-```
-
-#### Output Format
-
-The command outputs a table with the following columns:
-
-| Column | Description |
-|--------|-------------|
-| **Name** | Snapshot name |
-| **Application** | Associated application name |
-| **SHA** | Git commit SHA |
-| **Commit** | Commit message title |
-| **Status** | Test status (Succeeded/Failed/Pending) |
-| **Age** | Time since snapshot creation |
-
-#### Example Output
-
-```
-NAME                           APPLICATION    SHA      COMMIT                    STATUS     AGE
-snapshot-sample-xyz123         operator-1-0   abc123   Fix security vulnerability Succeeded  2d
-snapshot-sample-def456         operator-1-0   def456   Update dependencies       Failed     1d
-snapshot-sample-ghi789         operator-1-0   ghi789   Add new feature          Succeeded  12h
-```
-
-#### Use Cases
-
-**Pre-release validation:**
-```bash
-# Check latest candidate before creating release
-korn get snapshot --app operator-1-0 --candidate
-
-# Verify specific snapshot status
-korn get snapshot snapshot-sample-xyz123
-```
-
-**Debugging and troubleshooting:**
-```bash
-# Find snapshot for specific commit
-korn get snapshot --app operator-1-0 --sha abc1234def5678
-
-# Check all snapshots for application
-korn get snapshot --app operator-1-0
-```
-
-**Version-specific releases:**
-```bash
-# Find snapshot for specific version
-korn get snapshot --app operator-1-0 --version v1.0.15
-
-# Use in release creation
-korn create release --app operator-1-0 --environment staging --snapshot $(korn get snapshot --app operator-1-0 --candidate | tail -n 1 | awk '{print $1}')
-```
 
 ## Validation Rules
 
