@@ -107,6 +107,92 @@ korn <command> -h
 
 To use Korn with your operator, you need to label existing Konflux resources appropriately.
 
+### Why Labels Are Required
+
+Korn operates on existing Konflux resources (Applications, Components, ReleasePlans) that don't inherently contain information about their role in the operator release process. Konflux provides the infrastructure and enforces its own validations through Enterprise Contract Plans, but it doesn't distinguish between different types of applications or understand operator-specific concepts like bundle components.
+
+**Korn uses labels as a discovery and classification mechanism to:**
+
+#### 1. **Application Type Classification** (`korn.redhat.io/application`)
+- **Problem**: Konflux treats all applications equally, but operator and FBC applications require different validation strategies
+- **Solution**: Label applications as `operator` or `fbc` to apply appropriate validation rules
+- **Impact**: Enables Korn to perform operator-specific validations (CSV checks, image consistency) vs. simpler FBC validations
+
+#### 2. **Component Role Identification** (`korn.redhat.io/component`)
+- **Problem**: In operator applications, multiple components exist (controller, console-plugin, bundle, etc.) but Korn needs to identify the bundle specifically
+- **Solution**: Label the bundle component as `bundle` type
+- **Impact**: Allows Korn to locate the bundle container image for CSV parsing and validation
+
+#### 3. **Bundle-Component Mapping** (`korn.redhat.io/bundle-label`)
+- **Problem**: Korn must verify that image references in the bundle's CSV match the actual component images in the snapshot
+- **Solution**: Each component specifies which label name to look for in the bundle's container image
+- **Impact**: Enables automated verification that bundle references match snapshot reality, preventing deployment failures
+
+#### 4. **Environment Targeting** (`korn.redhat.io/environment`)
+- **Problem**: Applications typically have multiple ReleasePlans (staging, production) but Korn needs to select the correct one
+- **Solution**: Label ReleasePlans as `staging` or `production`
+- **Impact**: Allows users to specify target environment in commands without knowing ReleasePlan names
+
+### Label Schema
+
+| Label | Resource Type | Values | Purpose |
+|-------|---------------|--------|---------|
+| `korn.redhat.io/application` | Application | `operator`, `fbc` | Determines validation strategy |
+| `korn.redhat.io/component` | Component | `bundle` | Identifies bundle components |
+| `korn.redhat.io/bundle-label` | Component | `<label-name>` | Maps to bundle Dockerfile labels |
+| `korn.redhat.io/environment` | ReleasePlan | `staging`, `production` | Environment targeting |
+
+### Validation Workflow
+
+1. **Discovery**: Korn uses labels to find relevant resources
+   ```bash
+   # Find operator applications
+   kubectl get applications -l korn.redhat.io/application=operator
+
+   # Find bundle components
+   kubectl get components -l korn.redhat.io/component=bundle
+   ```
+
+2. **Classification**: Different validation rules apply based on labels
+   ```
+   operator applications → CSV validation, image consistency checks
+   fbc applications → basic image existence checks
+   ```
+
+3. **Mapping**: Bundle labels connect logical components to physical images
+   ```
+   component "controller-rhel9-operator" → bundle label "controller-rhel9-operator"
+   → LABEL controller-rhel9-operator="registry.../image@sha256:..."
+   ```
+
+4. **Targeting**: Environment labels select appropriate ReleasePlans
+   ```bash
+   korn create release --environment staging
+   # → finds ReleasePlan with korn.redhat.io/environment=staging
+   ```
+
+### Without Labels: What Breaks
+
+**Missing Application Labels:**
+- Korn can't distinguish operator from FBC applications
+- Wrong validation rules applied (or no validation)
+- Releases may succeed but deployments fail
+
+**Missing Component Labels:**
+- Can't locate bundle component for CSV parsing
+- No image reference validation possible
+- Silent inconsistencies between bundle and snapshot
+
+**Missing Bundle-Label Mapping:**
+- Can't verify bundle references match snapshot images
+- Potential runtime failures when Kubernetes can't pull images
+- No early detection of image reference mismatches
+
+**Missing Environment Labels:**
+- Can't automatically select correct ReleasePlan
+- Users must specify exact ReleasePlan names
+- No environment-based workflow automation
+
 ### 1. Application Labels
 
 Label applications to distinguish between operator and FBC (File Based Catalog) types:
