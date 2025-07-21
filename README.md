@@ -4,20 +4,6 @@
 
 **Korn** is an opinionated CLI tool for releasing Operators with Konflux, providing automated validations and streamlined release workflows.
 
-## Table of Contents
-
-- [Overview](#overview)
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Commands](#commands)
-  - [Namespace Handling](#namespace-handling)
-- [Operator Onboarding](#operator-onboarding)
-- [Get Snapshot](#get-snapshot)
-- [Release Process](#release-process)
-- [Validation Rules](#validation-rules)
-- [Examples](#examples)
-- [Contributing](#contributing)
-
 ## Overview
 
 Releasing an operator with Konflux involves complex validations and checks across multiple domain constructs (snapshots, releases, release plans, and release plan admissions). While Konflux enforces its own validations through Enterprise Contract Plans and RPA rules, it's up to the operator's release team to ensure artifact consistency.
@@ -33,15 +19,15 @@ Releasing an operator with Konflux involves complex validations and checks acros
 
 Any snapshot failing these validations cannot be used for release.
 
-## Installation
+## Quick Start
 
-### From Source
+### Installation
 
 ```bash
 git clone https://github.com/jordigilh/korn.git
 cd korn
 make build
-cp output/korn /usr/local/bin/  # or any directory in your PATH
+cp output/korn /usr/local/bin/
 ```
 
 ### Prerequisites
@@ -50,624 +36,116 @@ cp output/korn /usr/local/bin/  # or any directory in your PATH
 - Kubernetes cluster access with Konflux installed
 - Appropriate RBAC permissions for Konflux resources
 
-## Quick Start
+### Basic Usage
 
-1. **Label your applications:**
+1. **Set up your operator** (see [Onboarding Guide](docs/onboarding.md)):
    ```bash
+   # Label applications, components, and release plans
    oc label application operator-1-0 korn.redhat.io/application=operator
-   oc label application fbc-v4-15 korn.redhat.io/application=fbc
-   ```
-
-2. **Label your components:**
-   ```bash
    oc label component operator-bundle-1-0 korn.redhat.io/component=bundle
-   oc label component controller-rhel9-operator-1-0 korn.redhat.io/bundle-label=controller-rhel9-operator
-   ```
-
-3. **Label your release plans:**
-   ```bash
    oc label releaseplan operator-staging-1-0 korn.redhat.io/environment=staging
-   oc label releaseplan operator-production-1-0 korn.redhat.io/environment=production
    ```
 
-4. **Create a release:**
+2. **Validate setup**:
    ```bash
-   korn create release -app operator-1-0 -environment staging -releaseNotes releaseNotes-1.0.1.yaml
+   korn get application
+   korn get component --app operator-1-0
    ```
 
-## Commands
+3. **Create a release**:
+   ```bash
+   korn create release --app operator-1-0 --environment staging
+   ```
 
-### Get Commands
+## Essential Commands
 
-| Command | Description | Example |
-|---------|-------------|---------|
-| `get application` | List all applications with their types | `korn get application` |
-| `get component` | List components for an application | `korn get component --app operator-1-0` |
-| `get snapshot` | Get latest valid snapshot for an application | `korn get snapshot --app operator-1-0` |
-| `get release` | List releases for an application | `korn get release --app operator-1-0` |
-| `get releaseplan` | List release plans for an application | `korn get releaseplan --app operator-1-0` |
+| Command | Purpose | Example |
+|---------|---------|---------|
+| `get application` | List applications with types | `korn get application` |
+| `get snapshot --candidate` | Get latest valid snapshot | `korn get snapshot --app operator-1-0 --candidate` |
+| `create release` | Create new release | `korn create release --app operator-1-0 --environment staging` |
+| `waitfor release` | Wait for completion | `korn waitfor release <release-name>` |
 
-### Create Commands
+For complete command reference, see [Commands Documentation](docs/commands.md).
 
-| Command | Description | Example |
-|---------|-------------|---------|
-| `create release` | Create a new release | `korn create release --app operator-1-0 --environment staging` |
+## Namespace Handling
 
-### Wait Commands
-
-| Command | Description | Example |
-|---------|-------------|---------|
-| `waitfor release` | Wait for release completion | `korn waitfor release my-release` |
-
-For detailed command options:
-```bash
-korn <command> -h
-```
-
-### Namespace Handling
-
-All Korn commands operate within a Kubernetes namespace context. By default, Korn uses the current namespace from your Kubernetes configuration (the namespace set in your current context). You can override this behavior using the global `--namespace` flag:
+Korn uses your current Kubernetes namespace by default. Override with `--namespace`:
 
 ```bash
-# Use current namespace from kubectl context (default)
+# Use current namespace
 korn get application
 
-# Override to specific namespace
+# Override namespace
 korn get application --namespace my-operator-namespace
-
-# Set namespace for all commands in session
-kubectl config set-context --current --namespace=my-operator-namespace
 ```
 
-This ensures that Korn operations are scoped to the appropriate namespace where your Konflux resources are deployed.
+## Documentation
 
-## Operator Onboarding
+| Topic | Description | Link |
+|-------|-------------|------|
+| **Getting Started** | Complete onboarding process | [Onboarding Guide](docs/onboarding.md) |
+| **Commands** | Full command reference with examples | [Commands Reference](docs/commands.md) |
+| **Validation** | Understanding validation rules and debugging | [Validation Rules](docs/validation-rules.md) |
+| **Workflows** | Practical examples and advanced workflows | [Examples & Workflows](docs/examples.md) |
+| **Contributing** | Development setup and contribution guidelines | [Contributing Guide](docs/contributing.md) |
 
-To use Korn with your operator, you need to label existing Konflux resources appropriately.
+## Example Workflow
 
-### Why Labels Are Required
-
-Korn operates on existing Konflux resources (Applications, Components, ReleasePlans) that don't inherently contain information about their role in the operator release process. While Konflux provides the infrastructure and enforces its own validations through Enterprise Contract Plans, it doesn't distinguish between different types of applications or understand operator-specific concepts like bundle components.
-
-**Korn uses labels as a discovery and classification mechanism** to bridge this gap and enable intelligent automation of operator releases.
-
-#### Application Type Classification (`korn.redhat.io/application`)
-
-Konflux treats all applications equally, but operator and FBC applications require fundamentally different validation strategies. Operator applications contain multiple interdependent components with complex image reference relationships that must be validated against CSV manifests. FBC applications, in contrast, are simpler single-component catalog containers that require only basic image existence checks.
-
-By labeling applications as `operator` or `fbc`, Korn can apply the appropriate validation rules automatically. This enables sophisticated operator-specific validations like CSV parsing and image consistency checks for operator applications, while applying simpler validation logic for FBC applications.
-
-**Example:**
 ```bash
-# Operator application with multiple components requiring CSV validation
-oc label application operator-1-0 korn.redhat.io/application=operator
-
-# FBC application with single catalog component requiring basic checks
-oc label application fbc-v4-15 korn.redhat.io/application=fbc
-```
-
-When Korn processes `operator-1-0`, it performs bundle CSV parsing, image digest validation, and version consistency checks. For `fbc-v4-15`, it only verifies the catalog image exists and is accessible.
-
-#### Component Role Identification (`korn.redhat.io/component`)
-
-Within operator applications, multiple components typically exist representing different parts of the operator ecosystem (controller, console-plugin, bundle, must-gather, etc.). However, Korn needs to specifically identify the bundle component since it contains the CSV manifests that define image references for all other components.
-
-The `bundle` label designation allows Korn to locate the correct bundle container image for CSV parsing and validation. Without this identification, Korn would have no way to determine which component contains the critical metadata needed for validation.
-
-**Example:**
-```bash
-# Multiple components in operator-1-0 application
-oc get components
-NAME                            AGE
-controller-rhel9-operator-1-0   67d
-console-plugin-1-0              67d
-operator-bundle-1-0             67d
-must-gather-1-0                 67d
-
-# Label the bundle component specifically
-oc label component operator-bundle-1-0 korn.redhat.io/component=bundle
-```
-
-Now when Korn searches for CSV manifests, it knows to pull and inspect the `operator-bundle-1-0` container image, ignoring the other components that don't contain bundle metadata.
-
-#### Bundle-Component Mapping (`korn.redhat.io/bundle-label`)
-
-One of Korn's most critical validations involves verifying that image references declared in the bundle's CSV match the actual component images present in the snapshot. This prevents deployment failures where the bundle references images with different digests than what's actually being released.
-
-Each component specifies which label name to look for in the bundle's container image through the `bundle-label` annotation. This creates a direct mapping between logical component names and the physical labels in the bundle's Dockerfile, enabling automated verification that bundle references match snapshot reality.
-
-**Example:**
-```bash
-# Components specify their bundle label names
-oc label component controller-rhel9-operator-1-0 korn.redhat.io/bundle-label=controller-rhel9-operator
-oc label component console-plugin-1-0 korn.redhat.io/bundle-label=console-plugin
-
-# Corresponding labels in bundle.Dockerfile
-LABEL controller-rhel9-operator="registry.stage.redhat.io/my-operator/controller@sha256:abc123..."
-LABEL console-plugin="registry.stage.redhat.io/my-operator/console-plugin@sha256:def456..."
-```
-
-Korn validates that the snapshot contains `controller-rhel9-operator-1-0` with digest `sha256:abc123...` and `console-plugin-1-0` with digest `sha256:def456...`, ensuring bundle and snapshot consistency.
-
-#### Environment Targeting (`korn.redhat.io/environment`)
-
-Most applications maintain separate ReleasePlans for different environments (staging, production, development), but users shouldn't need to memorize specific ReleasePlan names or manage environment-to-plan mappings manually.
-
-By labeling ReleasePlans with their target environment (`staging` or `production`), Korn can automatically select the appropriate plan based on user intent. This enables simple commands like `korn create release --environment staging` without requiring users to specify exact ReleasePlan names.
-
-**Example:**
-```bash
-# Multiple ReleasePlans with complex names
-oc get releaseplan
-NAME                                  APPLICATION    TARGET
-operator-release-plan-staging-1-0     operator-1-0   rhtap-releng-tenant
-operator-release-plan-production-1-0  operator-1-0   rhtap-releng-tenant
-
-# Label them by environment for easy targeting
-oc label releaseplan operator-release-plan-staging-1-0 korn.redhat.io/environment=staging
-oc label releaseplan operator-release-plan-production-1-0 korn.redhat.io/environment=production
-
-# Simple command now works
-korn create release --app operator-1-0 --environment staging
-# Automatically finds and uses operator-release-plan-staging-1-0
-```
-
-### Label Schema
-
-| Label | Resource Type | Values | Purpose |
-|-------|---------------|--------|---------|
-| `korn.redhat.io/application` | Application | `operator`, `fbc` | Determines validation strategy |
-| `korn.redhat.io/component` | Component | `bundle` | Identifies bundle components |
-| `korn.redhat.io/bundle-label` | Component | `<label-name>` | Maps to bundle Dockerfile labels |
-| `korn.redhat.io/environment` | ReleasePlan | `staging`, `production` | Environment targeting |
-
-### Validation Workflow
-
-1. **Discovery**: Korn uses labels to find relevant resources
-   ```bash
-   # Find operator applications
-   kubectl get applications -l korn.redhat.io/application=operator
-
-   # Find bundle components
-   kubectl get components -l korn.redhat.io/component=bundle
-   ```
-
-2. **Classification**: Different validation rules apply based on labels
-   ```
-   operator applications → CSV validation, image consistency checks
-   fbc applications → basic image existence checks
-   ```
-
-3. **Mapping**: Bundle labels connect logical components to physical images
-   ```
-   component "controller-rhel9-operator" → bundle label "controller-rhel9-operator"
-   → LABEL controller-rhel9-operator="registry.../image@sha256:..."
-   ```
-
-4. **Targeting**: Environment labels select appropriate ReleasePlans
-   ```bash
-   korn create release --environment staging
-   # → finds ReleasePlan with korn.redhat.io/environment=staging
-   ```
-
-### Without Labels: What Breaks
-
-**Missing Application Labels:**
-- Korn can't distinguish operator from FBC applications
-- Wrong validation rules applied (or no validation)
-- Releases may succeed but deployments fail
-
-**Missing Component Labels:**
-- Can't locate bundle component for CSV parsing
-- No image reference validation possible
-- Silent inconsistencies between bundle and snapshot
-
-**Missing Bundle-Label Mapping:**
-- Can't verify bundle references match snapshot images
-- Potential runtime failures when Kubernetes can't pull images
-- No early detection of image reference mismatches
-
-**Missing Environment Labels:**
-- Can't automatically select correct ReleasePlan
-- Users must specify exact ReleasePlan names
-- No environment-based workflow automation
-
-### 1. Application Labels
-
-Apply the `korn.redhat.io/application` label to distinguish between operator and FBC applications (see [Application Type Classification](#application-type-classification-kornredhatioApplication) for detailed explanation and examples).
-
-**Verify labeling:**
-```bash
+# 1. Verify setup
 korn get application
-```
-
-Expected output:
-```
-NAME           TYPE       AGE
-fbc-v4-15      fbc        59d
-fbc-v4-16      fbc        59d
-operator-1-0   operator   66d
-operator-1-1   operator   66d
-```
-
-### 2. Component Labels
-
-Apply component labels to identify bundle components and establish bundle-component mapping (see [Component Role Identification](#component-role-identification-kornredhatioComponent) and [Bundle-Component Mapping](#bundle-component-mapping-kornredhatiotbundle-label) for detailed explanations and examples).
-
-**Verify component labeling:**
-```bash
-korn get component -app operator-1-0
-```
-
-Expected output:
-```
-NAME                            TYPE     BUNDLE LABEL                AGE
-console-plugin-1-0                       console-plugin              67d
-controller-rhel9-operator-1-0            controller-rhel9-operator   67d
-operator-bundle-1-0             bundle                               67d
-```
-
-### 3. Release Plan Labels
-
-Apply environment labels to ReleasePlans for automatic environment targeting (see [Environment Targeting](#environment-targeting-kornredhatioEnvironment) for detailed explanation and examples).
-
-**Verify release plan labeling:**
-```bash
-korn get releaseplan -app operator-1-0
-```
-
-Expected output:
-```
-NAME                      APPLICATION    ENVIRONMENT   RELEASE PLAN ADMISSION              ACTIVE   AGE
-operator-staging-1-0      operator-1-0   staging       rhtap-releng-tenant/my-operator-staging-1-0   true     66d
-operator-production-1-0   operator-1-0   production    rhtap-releng-tenant/my-operator-prod-1-0      true     66d
-```
-
-### 4. Update Bundle Dockerfile
-
-Your bundle's Dockerfile must include labels that map component names to their image digests:
-
-```dockerfile
-FROM scratch
-
-ARG VERSION=1.0
-
-# Component image labels - these must match your component bundle-label values
-LABEL controller-rhel9-operator="registry.stage.redhat.io/my-operator-tech-preview/my-rhel9-operator@sha256:6b33780302d877c80f3775673aed629975e6bebb8a8bd3499a9789bd44d04861"
-LABEL console-plugin="registry.stage.redhat.io/my-operator-tech-preview/my-console-plugin-rhel9@sha256:723276c6a1441d6b0d13b674b905385deec0291ac458260a569222b5612f73c4"
-
-COPY bundle/manifests /manifests/
-COPY bundle/metadata /metadata/
-COPY bundle/tests/scorecard /tests/scorecard/
-COPY LICENSE /licenses/licenses
-```
-
-> **Note:** Consider using automated tools like nudges to keep these labels synchronized with actual image digests.
-
-## Get Snapshot
-
-The `get snapshot` command allows you to retrieve snapshots for validation and inspection before creating releases.
-
-### Command Syntax
-
-```bash
-korn get snapshot [SNAPSHOT_NAME] [FLAGS]
-```
-
-#### Available Flags
-
-| Flag | Alias | Description | Example |
-|------|-------|-------------|---------|
-| `--application` | `--app` | Application name to filter snapshots | `--app operator-1-0` |
-| `--sha` | - | Get snapshot associated with specific commit SHA | `--sha 245fca6109a1f32e5ded0f7e330a85401aa2704a` |
-| `--version` | - | Get latest snapshot matching version in bundle's label | `--version v0.0.11` |
-| `--candidate` | `-c` | Get the latest valid candidate snapshot for next release | `--candidate` |
-
-#### Basic Examples
-
-**List all snapshots in namespace:**
-```bash
-korn get snapshot
-```
-
-**Get snapshots for specific application:**
-```bash
-korn get snapshot --app operator-1-0
-```
-
-**Get latest release candidate snapshot:**
-```bash
-korn get snapshot --app operator-1-0 --candidate
-```
-
-**Get specific snapshot by name:**
-```bash
-korn get snapshot snapshot-sample-xyz123
-```
-
-#### Advanced Examples
-
-**Get snapshot by commit SHA:**
-```bash
-korn get snapshot \
-  --app operator-1-0 \
-  --sha 245fca6109a1f32e5ded0f7e330a85401aa2704a
-```
-
-**Get latest snapshot for specific version:**
-```bash
-korn get snapshot \
-  --app operator-1-0 \
-  --version v1.0.15
-```
-
-**Get release candidate with application filter:**
-```bash
-korn get snapshot \
-  --app operator-1-0 \
-  --candidate
-```
-
-#### Output Format
-
-The command outputs a table with the following columns:
-
-| Column | Description |
-|--------|-------------|
-| **Name** | Snapshot name |
-| **Application** | Associated application name |
-| **SHA** | Git commit SHA |
-| **Commit** | Commit message title |
-| **Status** | Test status (Succeeded/Failed/Pending) |
-| **Age** | Time since snapshot creation |
-
-#### Example Output
-
-```
-NAME                           APPLICATION    SHA      COMMIT                    STATUS     AGE
-snapshot-sample-xyz123         operator-1-0   abc123   Fix security vulnerability Succeeded  2d
-snapshot-sample-def456         operator-1-0   def456   Update dependencies       Failed     1d
-snapshot-sample-ghi789         operator-1-0   ghi789   Add new feature          Succeeded  12h
-```
-
-#### Use Cases
-
-**Pre-release validation:**
-```bash
-# Check latest candidate before creating release
-korn get snapshot --app operator-1-0 --candidate
-
-# Verify specific snapshot status
-korn get snapshot snapshot-sample-xyz123
-```
-
-**Debugging and troubleshooting:**
-```bash
-# Find snapshot for specific commit
-korn get snapshot --app operator-1-0 --sha abc1234def5678
-
-# Check all snapshots for application
-korn get snapshot --app operator-1-0
-```
-
-**Version-specific releases:**
-```bash
-# Find snapshot for specific version
-korn get snapshot --app operator-1-0 --version v1.0.15
-
-# Use in release creation
-korn create release --app operator-1-0 --environment staging --snapshot $(korn get snapshot --app operator-1-0 --candidate | tail -n 1 | awk '{print $1}')
-```
-
-## Release Process
-
-### Creating a Release
-
-The primary command for releasing is:
-
-```bash
-korn create release [FLAGS]
-```
-
-#### Available Flags
-
-| Flag | Alias | Description | Default | Example |
-|------|-------|-------------|---------|---------|
-| `--application` | `--app` | Application name for the release | - | `--app operator-1-0` |
-| `--environment` | `--env` | Target environment (`staging` or `production`) | `staging` | `--environment production` |
-| `--snapshot` | - | Use specific snapshot instead of latest candidate | - | `--snapshot snapshot-xyz123` |
-| `--sha` | - | Use snapshot associated with specific commit SHA | - | `--sha abc1234def5678` |
-| `--releaseNotes` | `--rn` | Path to YAML file containing release notes | - | `--releaseNotes release-notes.yaml` |
-| `--dryrun` | - | Output manifest without creating release | `false` | `--dryrun` |
-| `--wait` | `-w` | Wait for release completion | `true` | `--wait=false` |
-| `--force` | `-f` | Force creation even if snapshot was used before | `false` | `--force` |
-| `--output` | `-o` | Output format (`json` or `yaml`) | - | `--output yaml` |
-| `--timeout` | `-t` | Timeout in minutes for wait operation | `60` | `--timeout 120` |
-
-> **Note:** `--dryrun` and `--wait` flags are mutually exclusive.
-
-#### Basic Examples
-
-**Simple staging release:**
-```bash
-korn create release --app operator-1-0 --environment staging
-```
-
-**Production release with release notes:**
-```bash
-korn create release --app operator-1-0 --environment production --releaseNotes releaseNotes-1.0.1.yaml
-```
-
-**Quick release without waiting:**
-```bash
-korn create release --app operator-1-0 --environment staging --wait=false
-```
-
-#### Advanced Examples
-
-**Release with specific snapshot:**
-```bash
-korn create release \
-  --app operator-1-0 \
-  --environment staging \
-  --snapshot snapshot-sample-xyz123 \
-  --releaseNotes release-notes.yaml
-```
-
-**Release using specific commit SHA:**
-```bash
-korn create release \
-  --app operator-1-0 \
-  --environment production \
-  --sha abc1234def5678901234567890abcdef12345678 \
-  --releaseNotes security-release-notes.yaml \
-  --timeout 180
-```
-
-**Force release (retry failed release):**
-```bash
-korn create release \
-  --app operator-1-0 \
-  --environment staging \
-  --force \
-  --releaseNotes updated-release-notes.yaml
-```
-
-**Dry run - generate manifest without creating:**
-```bash
-korn create release \
-  --app operator-1-0 \
-  --environment staging \
-  --releaseNotes release-notes.yaml \
-  --dryrun \
-  --output yaml
-```
-
-**Generate JSON manifest:**
-```bash
-korn create release \
-  --app operator-1-0 \
-  --environment production \
-  --output json \
-  --dryrun > release-manifest.json
-```
-
-**Extended timeout for long-running releases:**
-```bash
-korn create release \
-  --app operator-1-0 \
-  --environment production \
-  --releaseNotes release-notes.yaml \
-  --timeout 300 \
-  --wait
-```
-
-### Release Notes Format
-
-Korn supports embedding release notes from YAML files. See example formats:
-- [Bug release notes](test-data/releaseNotes.rhba)
-- [Security release notes](test-data/releaseNotes.rhsa)
-
-For detailed release notes structure, see [Konflux documentation](https://konflux.pages.redhat.com/docs/users/releasing/releasing-with-an-advisory.html#release).
-
-### Validation Process
-
-Before creating a release, Korn:
-
-1. **Finds the latest snapshot** for the specified application
-2. **Validates the snapshot** meets all criteria
-3. **Checks image consistency** between snapshot and bundle
-4. **Verifies version labels** across components
-5. **Creates the release object** with the validated snapshot
-
-## Validation Rules
-
-### Operator Applications
-
-- ✅ Snapshot created from push event
-- ✅ Snapshot marked as successful
-- ✅ All component images exist and are accessible
-- ✅ Bundle CSV references match snapshot image specs
-- ✅ Version labels consistent across all components
-
-### FBC Applications
-
-- ✅ Snapshot marked as successful
-- ✅ Container image exists and is accessible
-
-> **Note:** FBC releases require manual catalog updates via PR - Korn assists with snapshot validation only.
-
-## Examples
-
-### Complete Onboarding Workflow
-
-```bash
-# 1. Apply all required labels (see "Why Labels Are Required" section for commands)
-# - Application labels (operator/fbc)
-# - Component labels (bundle identification and mapping)
-# - ReleasePlan labels (staging/production)
-
-# 2. Verify setup
-korn get application
-korn get component -app operator-1-0
-korn get releaseplan -app operator-1-0
-
-# 3. Validate snapshots
-korn get snapshot -app operator-1-0
-korn get snapshot -app operator-1-0 --candidate
-
-# 4. Create release
-korn create release -app operator-1-0 -environment staging -releaseNotes release-notes.yaml
-```
-
-### Release Workflow Example
-
-```bash
-# Check available applications
-korn get application
-
-# Examine specific application components
 korn get component --app operator-1-0
 
-# Get the latest valid snapshot
-korn get snapshot --app operator-1-0
+# 2. Check latest candidate
+korn get snapshot --app operator-1-0 --candidate
 
-# Review release plans
-korn get releaseplan --app operator-1-0
-
-# Create staging release
+# 3. Create staging release
 korn create release --app operator-1-0 --environment staging
 
-# Wait for release completion (optional)
-korn waitfor release <release-name>
-
-# After staging validation, promote to production
+# 4. Promote to production
 korn create release --app operator-1-0 --environment production
 ```
 
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/amazing-feature`
-3. Make your changes and add tests
-4. Commit your changes: `git commit -m 'Add amazing feature'`
-5. Push to the branch: `git push origin feature/amazing-feature`
-6. Open a Pull Request
-
-### Development Setup
+## Getting Help
 
 ```bash
-git clone https://github.com/jordigilh/korn.git
-cd korn
-go mod download
-make build
-make test
+# Command help
+korn --help
+korn create release --help
+
+# Check command reference
+open docs/commands.md
+
+# Review examples
+open docs/examples.md
 ```
+
+## Key Features
+
+- **Automated Validation**: Comprehensive checks for operator snapshots
+- **Environment Targeting**: Simple staging/production workflows
+- **Bundle Verification**: Ensures CSV references match snapshot images
+- **Release Notes Integration**: YAML-based release documentation
+- **Konflux Integration**: Native support for Konflux resources and labels
+
+## Prerequisites for Usage
+
+Before using Korn, ensure you have:
+
+1. **Labeled Konflux Resources**: Applications, components, and release plans must be properly labeled
+2. **Bundle Configuration**: Bundle Dockerfile must include component image labels
+3. **Kubernetes Access**: Valid kubeconfig with appropriate permissions
+4. **Konflux Setup**: Working Konflux installation with your operator onboarded
+
+See the [Onboarding Guide](docs/onboarding.md) for detailed setup instructions.
+
+## Support
+
+- **Documentation**: Check the [docs/](docs/) directory for comprehensive guides
+- **Issues**: Report bugs and request features on [GitHub Issues](https://github.com/jordigilh/korn/issues)
+- **Examples**: See [examples and workflows](docs/examples.md) for common use cases
 
 ## License
 
 This project is licensed under the [LICENSE](LICENSE) file in the repository.
-
----
-
-**Need help?** Check the command help: `korn <command> -h` or review the [examples](#examples) section.
