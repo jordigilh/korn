@@ -20,8 +20,9 @@ type ContextType string
 var (
 	KubeCliCtxType    ContextType = "kubeCli"
 	PodmanCliCtxType  ContextType = "podmanCli"
-	KubeConfigCtxType ContextType = "kubeconfig"
 	NamespaceCtxType  ContextType = "namespace"
+	GitCliCtxType     ContextType = "gitCli"
+	DynamicCliCtxType ContextType = "dynamicCli"
 )
 
 func GetDefaultKubeconfigPath() string {

@@ -21,7 +21,6 @@ var _ = When("retrieving applications", func() {
 	)
 
 	BeforeEach(func() {
-		By("configuring nodes and OSDInit")
 		fakeClientBuilder = fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(ns)
 	})
 	DescribeTable("it correctly identifies all applications as expected", func(hasError bool, appName string, objs []runtime.Object) {

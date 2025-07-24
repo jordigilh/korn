@@ -13,6 +13,7 @@ import (
 
 	"github.com/urfave/cli/v3"
 	mjson "k8s.io/apimachinery/pkg/runtime/serializer/json"
+	"k8s.io/client-go/dynamic"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 )
@@ -33,6 +34,7 @@ func CreateCommand() *cli.Command {
 			korn.Namespace = ctx.Value(internal.NamespaceCtxType).(string)
 			korn.KubeClient = ctx.Value(internal.KubeCliCtxType).(client.Client)
 			korn.PodClient = ctx.Value(internal.PodmanCliCtxType).(internal.ImageClient)
+			korn.DynamicClient = ctx.Value(internal.DynamicCliCtxType).(dynamic.Interface)
 			return ctx, nil
 		},
 		MutuallyExclusiveFlags: []cli.MutuallyExclusiveFlags{
@@ -186,8 +188,7 @@ func CreateCommand() *cli.Command {
 			}
 			logrus.Infof("Release created %s", r.Name)
 			if cmd.Bool("wait") {
-				kubeCfgPath := ctx.Value(internal.KubeConfigCtxType).(string)
-				err = korn.WaitForReleaseToComplete(*r, kubeCfgPath)
+				err = korn.WaitForReleaseToComplete(*r)
 				if err != nil {
 					return err
 				}

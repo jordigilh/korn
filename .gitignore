@@ -3,3 +3,5 @@ vendor/*
 korn
 bin/
 output/
+**/**/__debug*
+coverage.out

@@ -31,12 +31,10 @@ var (
 func GetCommand() *cli.Command {
 
 	return &cli.Command{
-		Name:                  "component",
-		Aliases:               []string{"comp", "comps", "components"},
-		Usage:                 "get components",
-		EnableShellCompletion: true,
+		Name:    "component",
+		Aliases: []string{"comp", "comps", "components"},
+		Usage:   "get components",
 		Arguments: []cli.Argument{&cli.StringArg{
-			Name:        "component",
 			Destination: &korn.ComponentName,
 		}},
 		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {

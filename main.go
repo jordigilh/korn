@@ -62,9 +62,14 @@ func main() {
 			if err != nil {
 				return nil, err
 			}
+			dynamicClient, err := internal.GetDynamicClient(cmd.String("kubeconfig"))
+			if err != nil {
+				return nil, err
+			}
 			ctx = context.WithValue(ctx, internal.NamespaceCtxType, cmd.String("namespace"))
-			ctx = context.WithValue(ctx, internal.KubeConfigCtxType, cmd.String("kubeconfig"))
 			ctx = context.WithValue(ctx, internal.PodmanCliCtxType, podClient)
+			ctx = context.WithValue(ctx, internal.GitCliCtxType, internal.NewGitClient())
+			ctx = context.WithValue(ctx, internal.DynamicCliCtxType, dynamicClient)
 			ctx = context.WithValue(ctx, internal.KubeCliCtxType, kubeClient)
 			return ctx, nil
 		},

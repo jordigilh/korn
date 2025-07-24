@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/blang/semver/v4"
-	"github.com/jordigilh/korn/internal"
 	"github.com/sirupsen/logrus"
 
 	applicationapiv1alpha1 "github.com/konflux-ci/application-api/api/v1alpha1"
@@ -238,18 +237,11 @@ func (k Korn) CreateRelease(release releaseapiv1alpha1.Release) (*releaseapiv1al
 	return &release, nil
 }
 
-func (k Korn) WaitForReleaseToComplete(release releaseapiv1alpha1.Release, kubeConfigPath string) error {
+func (k Korn) WaitForReleaseToComplete(release releaseapiv1alpha1.Release) error {
 
 	start := time.Now()
-	dynamicClient, err := internal.GetDynamicClient(kubeConfigPath)
-	if err != nil {
-		return nil
-	}
-	watch, err := dynamicClient.Resource(schema.GroupVersionResource{
-		Group:    "appstudio.redhat.com",
-		Version:  "v1alpha1",
-		Resource: "releases",
-	}).Namespace(k.Namespace).Watch(context.TODO(), v1.SingleObject(v1.ObjectMeta{Name: release.Name, Namespace: k.Namespace}))
+
+	watch, err := k.DynamicClient.Resource(konfluxResourceGVR).Namespace(k.Namespace).Watch(context.TODO(), v1.SingleObject(v1.ObjectMeta{Name: release.Name, Namespace: k.Namespace}))
 	if err != nil {
 		return err
 	}
@@ -295,8 +287,7 @@ func (k Korn) WaitForReleaseToComplete(release releaseapiv1alpha1.Release, kubeC
 			if err != nil {
 				return err
 			}
-			fmt.Printf("Artifacts:\n %+v\n", adv)
-			fmt.Printf("RAW Artifacts:\n %+v\n", release.Status.Artifacts.Raw)
+			logrus.Debugf("Artifacts:\n %+v\n", adv)
 			return nil
 		case "Progressing":
 			logrus.Debugf("Release %s/%s still ongoing after %s", release.Namespace, release.Name, duration.HumanDuration(time.Since(start)))
@@ -331,4 +322,10 @@ type advisory struct {
 type catalogURL struct {
 	Name string `json:"name"`
 	URL  string `json:"url"`
+}
+
+var konfluxResourceGVR = schema.GroupVersionResource{
+	Group:    "appstudio.redhat.com",
+	Version:  "v1alpha1",
+	Resource: "releases",
 }

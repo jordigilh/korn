@@ -35,7 +35,6 @@ func GetCommand() *cli.Command {
 		Usage:       "get applications",
 		Description: "Retrieves the list of applications in your ",
 		Arguments: []cli.Argument{&cli.StringArg{
-			Name:        "application",
 			Destination: &korn.ApplicationName,
 		}},
 		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {

@@ -44,7 +44,7 @@ func GetCommand() *cli.Command {
 			korn.Namespace = ctx.Value(internal.NamespaceCtxType).(string)
 			korn.KubeClient = ctx.Value(internal.KubeCliCtxType).(client.Client)
 			korn.PodClient = ctx.Value(internal.PodmanCliCtxType).(internal.ImageClient)
-			korn.GitClient = internal.NewGitClient()
+			korn.GitClient = ctx.Value(internal.GitCliCtxType).(internal.GitCommitVersioner)
 			return ctx, nil
 		},
 		Flags: []cli.Flag{

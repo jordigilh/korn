@@ -6,7 +6,6 @@ require (
 	github.com/blang/semver/v4 v4.0.0
 	github.com/containers/podman/v5 v5.5.1
 	github.com/go-git/go-git/v5 v5.12.0
-	github.com/google/go-github/v61 v61.0.0
 	github.com/konflux-ci/application-api v0.0.0-20250324201748-5a9670bf7679
 	github.com/konflux-ci/release-service v0.0.0-20250612135914-9e5496ca607f
 	github.com/onsi/ginkgo/v2 v2.23.4
@@ -101,7 +100,6 @@ require (
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/go-containerregistry v0.20.3 // indirect
 	github.com/google/go-intervals v0.0.2 // indirect
-	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/pprof v0.0.0-20250403155104-27863c87afa6 // indirect
 	github.com/google/uuid v1.6.0 // indirect

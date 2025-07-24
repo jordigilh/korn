@@ -2,10 +2,12 @@ package release
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/jordigilh/korn/internal"
 	"github.com/jordigilh/korn/internal/konflux"
 	"github.com/urfave/cli/v3"
+	"k8s.io/client-go/dynamic"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -31,6 +33,7 @@ func WaitForCommand() *cli.Command {
 		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
 			korn.Namespace = ctx.Value(internal.NamespaceCtxType).(string)
 			korn.KubeClient = ctx.Value(internal.KubeCliCtxType).(client.Client)
+			korn.DynamicClient = ctx.Value(internal.DynamicCliCtxType).(dynamic.Interface)
 			return ctx, nil
 		},
 		Arguments: []cli.Argument{&cli.StringArg{
@@ -39,12 +42,14 @@ func WaitForCommand() *cli.Command {
 		}},
 		Description: "Waits for an existing release to finish by periodically checking every 10 seconds for the status of the release until it's either Failed or Succeeeded. Timeout occurs after 60 minutes",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
+			if korn.ReleaseName == "" {
+				return fmt.Errorf("release name is required")
+			}
 			r, err := korn.GetRelease()
 			if err != nil {
 				return err
 			}
-			kubeConfigPath := ctx.Value(internal.KubeConfigCtxType).(string)
-			err = korn.WaitForReleaseToComplete(*r, kubeConfigPath)
+			err = korn.WaitForReleaseToComplete(*r)
 			if err != nil {
 				return err
 			}

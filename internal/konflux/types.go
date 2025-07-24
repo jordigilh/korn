@@ -2,6 +2,7 @@ package konflux
 
 import (
 	"github.com/jordigilh/korn/internal"
+	"k8s.io/client-go/dynamic"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -23,6 +24,7 @@ type Korn struct {
 	KubeClient      client.Client
 	PodClient       internal.ImageClient
 	GitClient       internal.GitCommitVersioner
+	DynamicClient   dynamic.Interface
 }
 
 type ReleaseNote struct {
