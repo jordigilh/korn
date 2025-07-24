@@ -19,7 +19,7 @@ func (k Korn) ListReleasePlans() ([]releaseapiv1alpha1.ReleasePlan, error) {
 	}
 	ret := []releaseapiv1alpha1.ReleasePlan{}
 	for _, c := range list.Items {
-		if c.Spec.Application == k.ApplicationName {
+		if k.ApplicationName == "" || c.Spec.Application == k.ApplicationName {
 			ret = append(ret, c)
 		}
 	}

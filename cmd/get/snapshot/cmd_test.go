@@ -9,6 +9,7 @@ import (
 	"github.com/containers/podman/v5/pkg/inspect"
 	"github.com/jordigilh/korn/cmd/get/snapshot"
 	"github.com/jordigilh/korn/internal"
+	"github.com/jordigilh/korn/testutils"
 	applicationapiv1alpha1 "github.com/konflux-ci/application-api/api/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -71,8 +72,8 @@ var _ = Describe("Get Snapshot Command", func() {
 							Name:      "test-snapshot",
 							Namespace: "test-namespace",
 							Labels: map[string]string{
-								"pac.test.appstudio.openshift.io/event-type": "push",
-								"appstudio.openshift.io/application":         "test-app",
+								testutils.EventTypeLabel:   testutils.PushEventType,
+								testutils.ApplicationLabel: "test-app",
 							},
 						},
 						Spec: applicationapiv1alpha1.SnapshotSpec{

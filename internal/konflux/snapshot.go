@@ -15,9 +15,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+var (
+	matchingLabelsPushEventType = client.MatchingLabels{"pac.test.appstudio.openshift.io/event-type": "push"}
+)
+
 func (k Korn) ListSnapshots() ([]applicationapiv1alpha1.Snapshot, error) {
 	list := applicationapiv1alpha1.SnapshotList{}
-	labels := client.MatchingLabels{"pac.test.appstudio.openshift.io/event-type": "push"}
+	labels := matchingLabelsPushEventType
 	if len(k.ApplicationName) > 0 {
 		appType, err := k.GetApplicationType()
 		if err != nil {
@@ -164,7 +168,7 @@ func (k Korn) GetSnapshotCandidateForRelease() (*applicationapiv1alpha1.Snapshot
 		if lastSnapshot != nil && v.Name == lastSnapshot.Name {
 			break
 		}
-		valid, err := k.validateSnapshotCandicacy(comp.Name, v)
+		valid, err := k.validateSnapshotCandidacy(comp.Name, v)
 		if err != nil {
 			return nil, err
 		}
@@ -202,7 +206,7 @@ func GetComponentPullspecFromSnapshot(snapshot applicationapiv1alpha1.Snapshot, 
 	return "", fmt.Errorf("component reference %s in snapshot %s not found", componentName, snapshot.Name)
 }
 
-func (k Korn) validateSnapshotCandicacy(bundleName string, snapshot applicationapiv1alpha1.Snapshot) (bool, error) {
+func (k Korn) validateSnapshotCandidacy(bundleName string, snapshot applicationapiv1alpha1.Snapshot) (bool, error) {
 	if !hasSnapshotCompletedSuccessfully(snapshot) {
 		logrus.Debugf("snapshot %s has not finished running yet, discarding", snapshot.Name)
 		return false, nil
