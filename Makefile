@@ -7,6 +7,7 @@ CONTROLLER_TOOLS_VERSION ?= v0.17.2
 ENVTEST_K8S_VERSION = 1.32.0
 ENVTEST_VERSION ?= release-0.20
 ENVTEST ?= $(LOCALBIN)/setup-envtest
+CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 
 GOTOOLCHAIN := go$(GO_VERSION)
 
@@ -30,7 +31,7 @@ endif
 GOIMPORTS = $(GOBIN)/goimports
 GINKGO = $(GOBIN)/ginkgo
 
-.PHONY: help clean controller-gen build test ginkgo
+.PHONY: help clean controller-gen build test ginkgo envtest
 
 help: ## Display this help message
 	@echo "Available targets:"
@@ -49,9 +50,17 @@ clean: ## Remove build artifacts
 	@rm -rf $(OUTPUT)
 	@echo "Build artifacts removed from $(OUTPUT)"
 
+$(LOCALBIN):
+	mkdir -p $(LOCALBIN)
+
+$(OUTPUT):
+	mkdir -p $(OUTPUT)
+
 $(GINKGO):
 	go install github.com/onsi/ginkgo/v2/ginkgo
 
+.PHONY: controller-gen
+controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary
 $(CONTROLLER_GEN): $(LOCALBIN)
 	test -s $(LOCALBIN)/controller-gen && $(LOCALBIN)/controller-gen --version | grep -q $(CONTROLLER_TOOLS_VERSION) || \
 	GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_TOOLS_VERSION)
@@ -87,5 +96,5 @@ test: fmt vet envtest ginkgo  ## Run tests
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" ENVTEST_K8S_VERSION="$(ENVTEST_K8S_VERSION)" ginkgo $(GINKGO_FLAGS)
 
 .PHONY: build
-build: fmt vet ## Build the korn binary
+build: fmt vet $(OUTPUT) ## Build the korn binary
 	go build -mod=mod -o $(OUTPUT)/korn main.go

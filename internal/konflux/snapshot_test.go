@@ -52,10 +52,7 @@ var _ = Describe("Snapshot functionality", func() {
 			func(applicationName string, snapshots []runtime.Object, expectedCount int, expectError bool, description string) {
 				kornInstance.ApplicationName = applicationName
 				// Create a fresh client builder for each test to avoid state pollution
-				testClientBuilder := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(ns).WithIndex(&applicationapiv1alpha1.Snapshot{}, "metadata.name", testutils.FilterBySnapshotName)
-				if len(snapshots) > 0 {
-					testClientBuilder = testClientBuilder.WithRuntimeObjects(snapshots...)
-				}
+				testClientBuilder := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(ns).WithRuntimeObjects(snapshots...).WithIndex(&applicationapiv1alpha1.Snapshot{}, "metadata.name", testutils.FilterBySnapshotName)
 				kornInstance.KubeClient = testClientBuilder.Build()
 
 				result, err := kornInstance.ListSnapshots()
@@ -70,7 +67,7 @@ var _ = Describe("Snapshot functionality", func() {
 			},
 
 			Entry("should return all push event snapshots when ApplicationName is empty",
-				"", getSimpleSnapshots(), 2, false,
+				"", append(getOperatorTestObjects(), getSimpleSnapshots()...), 2, false,
 				"Should return all push event snapshots when no app filter"),
 			Entry("should return empty list when no snapshots exist",
 				"", []runtime.Object{}, 0, false,

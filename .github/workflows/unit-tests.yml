@@ -48,6 +48,10 @@ jobs:
           runc \
           uidmap
 
+      - name: Install envtest
+        run: |
+          make envtest
+
       - name: Run Ginkgo tests with coverage
         id: ginkgo-tests
         run: |
