@@ -15,9 +15,9 @@ jobs:
           - goos: linux
             goarch: amd64
           - goos: linux
-            goarch: arm64
+            goarch: aarch64
           - goos: darwin
-            goarch: arm64
+            goarch: aarch64
 
     name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
 
