@@ -20,6 +20,10 @@ jobs:
           go-version-file: "go.mod"
           cache: true
 
+      - name: Install libbtrfs-dev ubuntu packages to fix build error
+        run: |
+          sudo apt-get install libbtrfs-dev -y
+
       - name: Run Ginkgo tests with coverage
         id: ginkgo-tests
         run: |
