@@ -1,0 +1,52 @@
+
+name: Build Validation
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+          cache: true
+
+      - name: Install build packages
+        run: |
+          sudo apt-get install -y \
+          btrfs-progs \
+          gcc \
+          git \
+          golang-go \
+          go-md2man \
+          iptables \
+          libassuan-dev \
+          libbtrfs-dev \
+          libc6-dev \
+          libdevmapper-dev \
+          libglib2.0-dev \
+          libgpgme-dev \
+          libgpg-error-dev \
+          libprotobuf-dev \
+          libprotobuf-c-dev \
+          libseccomp-dev \
+          libselinux1-dev \
+          libsystemd-dev \
+          make \
+          netavark \
+          passt \
+          pkg-config \
+          runc \
+          uidmap
+
+      - name: Build binary
+        run: |
+          make build
+          ls -la output/
