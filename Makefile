@@ -59,6 +59,9 @@ $(OUTPUT):
 $(GINKGO):
 	go install github.com/onsi/ginkgo/v2/ginkgo
 
+ginkgo: $(GINKGO) ## Download ginkgo locally if necessary
+	$(GINKGO) version
+
 .PHONY: controller-gen
 controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary
 $(CONTROLLER_GEN): $(LOCALBIN)
