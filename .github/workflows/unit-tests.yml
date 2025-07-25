@@ -20,7 +20,7 @@ jobs:
           go-version-file: "go.mod"
           cache: true
 
-      - name: Install libbtrfs-dev ubuntu packages to fix build error
+      - name: Install build packages
         run: |
           sudo apt-get install -y \
           btrfs-progs \
@@ -56,10 +56,9 @@ jobs:
         id: ginkgo-tests
         run: |
           make test
-          # go install github.com/onsi/ginkgo/v2/ginkgo@v2.23.4
-          # go tool cover -func=coverage/coverage.out
-          # COVERAGE=$(go tool cover --func=coverage.out | grep total | grep -Eo '[0-9]+\.[0-9]+')
-          # echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
+          go tool cover -func=coverage/coverage.out
+          COVERAGE=$(go tool cover -func=coverage/coverage.out | grep total | grep -Eo '[0-9]+\.[0-9]+')
+          echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
 
       - uses: actions/upload-artifact@v4
         with:
@@ -83,7 +82,9 @@ jobs:
           fi
           echo "Coverage status: $COVERAGE"
           MIN_COVERAGE=${MIN_COVERAGE:-72.9}
-          if (( $(echo "$COVERAGE < $MIN_COVERAGE" | bc -l) )); then …
-            echo "Min coverage failed";
-            exit 1;
+          if (( $(echo "$COVERAGE < $MIN_COVERAGE" | bc -l) )); then
+            echo "Min coverage failed: $COVERAGE% < $MIN_COVERAGE%"
+            exit 1
+          else
+            echo "Coverage check passed: $COVERAGE% >= $MIN_COVERAGE%"
           fi
