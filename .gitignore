@@ -1,0 +1,8 @@
+vendor/*
+.vscode
+korn
+bin/
+output/
+**/**/__debug*
+coverage*
+*.test

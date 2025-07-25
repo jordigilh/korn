@@ -1,0 +1,86 @@
+name: Run Ginkgo Unit Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    outputs:
+      coverage:  ${{ steps.ginkgo-tests.outputs.coverage }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+          cache: true
+
+      - name: Install build packages
+        run: |
+          sudo apt-get install -y \
+          btrfs-progs \
+          gcc \
+          git \
+          golang-go \
+          go-md2man \
+          iptables \
+          libassuan-dev \
+          libbtrfs-dev \
+          libc6-dev \
+          libdevmapper-dev \
+          libglib2.0-dev \
+          libgpgme-dev \
+          libgpg-error-dev \
+          libprotobuf-dev \
+          libprotobuf-c-dev \
+          libseccomp-dev \
+          libselinux1-dev \
+          libsystemd-dev \
+          make \
+          netavark \
+          passt \
+          pkg-config \
+          runc \
+          uidmap
+
+      - name: Run Ginkgo tests with coverage
+        id: ginkgo-tests
+        run: |
+          make test
+          go tool cover -func=coverage/coverage.out
+          COVERAGE=$(go tool cover -func=coverage/coverage.out | grep total | grep -Eo '[0-9]+\.[0-9]+')
+          echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: test-coverage
+          path: coverage/coverage.out
+
+  Coverage:
+    needs: test
+    name: "Test Coverage ${{ needs.test.outputs.coverage }}"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install bc
+        run: sudo apt-get update && sudo apt-get install -y bc
+
+      - name: Check Coverage
+        run: |
+          COVERAGE=${{ needs.test.outputs.coverage }}
+          if [[ -z "$COVERAGE" ]]; then
+            echo "Error: Coverage value is empty!"
+            exit 1
+          fi
+          echo "Coverage status: $COVERAGE"
+          MIN_COVERAGE=${MIN_COVERAGE:-72.9}
+          if (( $(echo "$COVERAGE < $MIN_COVERAGE" | bc -l) )); then
+            echo "Min coverage failed: $COVERAGE% < $MIN_COVERAGE%"
+            exit 1
+          else
+            echo "Coverage check passed: $COVERAGE% >= $MIN_COVERAGE%"
+          fi
