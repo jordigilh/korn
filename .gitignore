@@ -4,5 +4,5 @@ korn
 bin/
 output/
 **/**/__debug*
-coverage.*
+coverage*
 *.test

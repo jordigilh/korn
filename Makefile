@@ -11,6 +11,7 @@ CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 
 GOTOOLCHAIN := go$(GO_VERSION)
 
+COVERAGE_DIR ?= $(shell pwd)/coverage
 LOCALBIN ?= $(shell pwd)/bin
 OUTPUT ?= $(shell pwd)/output
 
