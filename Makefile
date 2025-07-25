@@ -93,7 +93,7 @@ vet: ## Run go vet against code
 
 .PHONY: test
 test: fmt vet envtest ginkgo  ## Run tests
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" ENVTEST_K8S_VERSION="$(ENVTEST_K8S_VERSION)" ginkgo $(GINKGO_FLAGS)
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" ENVTEST_K8S_VERSION="$(ENVTEST_K8S_VERSION)" $(GOBIN)/ginkgo $(GINKGO_FLAGS)
 
 .PHONY: build
 build: fmt vet $(OUTPUT) ## Build the korn binary
