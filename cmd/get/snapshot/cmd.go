@@ -51,7 +51,7 @@ func GetCommand() *cli.Command {
 			&cli.StringFlag{
 				Name:        "application",
 				Aliases:     []string{"app"},
-				Usage:       "-application <application_name>",
+				Usage:       "Example: -application my-application",
 				DefaultText: "Application where the components are derived from",
 				Destination: &korn.ApplicationName,
 			},
@@ -119,6 +119,9 @@ func print(snapshots []applicationapiv1alpha1.Snapshot) {
 				status = c.Reason
 				break
 			}
+		}
+		if v.CreationTimestamp.IsZero() {
+			continue
 		}
 		rows = append(rows, metav1.TableRow{Cells: []interface{}{
 			v.Name,

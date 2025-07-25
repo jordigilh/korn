@@ -58,16 +58,6 @@ func (k Korn) ListSnapshots() ([]applicationapiv1alpha1.Snapshot, error) {
 		func(i, j int) bool {
 			return list.Items[j].ObjectMeta.CreationTimestamp.Before(&list.Items[i].ObjectMeta.CreationTimestamp)
 		})
-	for _, v := range list.Items {
-		var relStatus string
-		for _, c := range v.Status.Conditions {
-			if c.Type == "AppStudioTestSucceeded" {
-				relStatus = c.Reason
-				break
-			}
-		}
-		logrus.Debugf("Name: %s\tStatus: %s\tComponent: %s\tSHA title: %s\n", v.Name, relStatus, v.Labels["appstudio.openshift.io/component"], v.Annotations["pac.test.appstudio.openshift.io/sha-title"])
-	}
 	return list.Items, nil
 }
 

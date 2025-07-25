@@ -8,6 +8,7 @@ import (
 	"github.com/jordigilh/korn/internal"
 	"github.com/jordigilh/korn/internal/konflux"
 	releaseapiv1alpha1 "github.com/konflux-ci/release-service/api/v1alpha1"
+	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/duration"
@@ -49,7 +50,7 @@ func GetCommand() *cli.Command {
 			&cli.StringFlag{
 				Name:        "application",
 				Aliases:     []string{"app"},
-				Usage:       "-application <application_name>",
+				Usage:       "Example: -application my-application",
 				DefaultText: "Application where the release plans belong to",
 				Destination: &korn.ApplicationName,
 			},
@@ -77,6 +78,13 @@ func GetCommand() *cli.Command {
 func print(releasePlans []releaseapiv1alpha1.ReleasePlan) {
 	rows := []metav1.TableRow{}
 	for _, v := range releasePlans {
+		if v.CreationTimestamp.IsZero() {
+			continue
+		}
+		if v.Labels == nil {
+			logrus.Debugf("ReleasePlan %s has no labels", v.Name)
+			continue
+		}
 		rows = append(rows, metav1.TableRow{Cells: []interface{}{
 			v.Name,
 			v.Spec.Application,

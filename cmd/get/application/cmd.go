@@ -8,6 +8,7 @@ import (
 	"github.com/jordigilh/korn/internal"
 	"github.com/jordigilh/korn/internal/konflux"
 	applicationapiv1alpha1 "github.com/konflux-ci/application-api/api/v1alpha1"
+	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/duration"
@@ -33,7 +34,7 @@ func GetCommand() *cli.Command {
 		Name:        "application",
 		Aliases:     []string{"app", "apps", "applications"},
 		Usage:       "get applications",
-		Description: "Retrieves the list of applications in your ",
+		Description: "Retrieves the list of applications in your namespace",
 		Arguments: []cli.Argument{&cli.StringArg{
 			Destination: &korn.ApplicationName,
 		}},
@@ -64,6 +65,13 @@ func GetCommand() *cli.Command {
 func print(apps []applicationapiv1alpha1.Application) {
 	rows := []metav1.TableRow{}
 	for _, v := range apps {
+		if v.CreationTimestamp.IsZero() {
+			continue
+		}
+		if v.Labels == nil {
+			logrus.Debugf("Application %s has no labels", v.Name)
+			continue
+		}
 		rows = append(rows, metav1.TableRow{Cells: []interface{}{
 			v.Name,
 			v.Labels[konflux.ApplicationTypeLabel],

@@ -32,12 +32,13 @@ func main() {
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:  "kubeconfig",
+				Usage: "Example: -kubeconfig ~/.kube/config",
 				Value: internal.GetDefaultKubeconfigPath(),
 			},
 			&cli.StringFlag{
 				Name:    "namespace",
 				Aliases: []string{"n"},
-				Usage:   "-namespace <namespace>",
+				Usage:   "Example: -namespace my-namespace",
 				Value:   internal.GetCurrentNamespace(),
 			},
 			&cli.BoolFlag{

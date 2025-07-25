@@ -8,6 +8,7 @@ import (
 	"github.com/jordigilh/korn/internal"
 	"github.com/jordigilh/korn/internal/konflux"
 	applicationapiv1alpha1 "github.com/konflux-ci/application-api/api/v1alpha1"
+	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/duration"
@@ -46,11 +47,11 @@ func GetCommand() *cli.Command {
 			&cli.StringFlag{
 				Name:        "application",
 				Aliases:     []string{"app"},
-				Usage:       "-application <application_name>",
+				Usage:       "Example: -application my-application",
 				DefaultText: "Application where the components are derived from",
 				Destination: &korn.ApplicationName,
 			}},
-		Description: "Retrieves a component or the list of components. If application is not provided, it will list all components in the namespace ",
+		Description: "Retrieves a component or the list of components. If application is not provided, it will list all components in the namespace",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			if len(korn.ComponentName) == 0 {
 				l, err := korn.ListComponents()
@@ -73,6 +74,13 @@ func GetCommand() *cli.Command {
 func print(comps []applicationapiv1alpha1.Component) {
 	rows := []metav1.TableRow{}
 	for _, v := range comps {
+		if v.CreationTimestamp.IsZero() {
+			continue
+		}
+		if v.Labels == nil {
+			logrus.Debugf("Component %s has no labels", v.Name)
+			continue
+		}
 		rows = append(rows, metav1.TableRow{Cells: []interface{}{
 			v.Name,
 			v.Labels[konflux.ComponentTypeLabel],
