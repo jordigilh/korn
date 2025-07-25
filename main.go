@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 
@@ -14,7 +15,8 @@ import (
 )
 
 var (
-	debug bool
+	debug   bool
+	version string = "dev" // Set via ldflags during build
 )
 
 func main() {
@@ -46,6 +48,18 @@ func main() {
 				Aliases:     []string{"d"},
 				Usage:       "Enable debug mode",
 				Destination: &debug,
+			},
+			&cli.BoolFlag{
+				Name:    "version",
+				Aliases: []string{"v"},
+				Usage:   "Print version information",
+				Action: func(ctx context.Context, cmd *cli.Command, value bool) error {
+					if value {
+						fmt.Printf("korn version %s\n", version)
+						os.Exit(0)
+					}
+					return nil
+				},
 			},
 		},
 		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {

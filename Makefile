@@ -1,5 +1,15 @@
 
 
+# Version settings - can be overridden with make VERSION=vX.Y.Z build
+VERSION ?= $(shell git describe --tags --always --dirty || echo "dev")
+PROJECT_NAME := korn
+GOOS ?= $(shell go env GOOS)
+GOARCH ?= $(shell go env GOARCH)
+
+
+# Binary filename following GitHub standard: <project-name>_<version>_<os>_<arch>
+BINARY_NAME := $(PROJECT_NAME)_$(VERSION)_$(GOOS)_$(GOARCH)
+
 GO_VERSION := 1.23.6
 CONTROLLER_TOOLS_VERSION ?= v0.17.2
 
@@ -40,11 +50,13 @@ help: ## Display this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Examples:"
-	@echo "  make help     - Show this help message"
-	@echo "  make build    - Build the korn binary"
-	@echo "  make test     - Run all tests with coverage"
-	@echo "  make lint     - Run linting checks"
-	@echo "  make clean    - Remove build artifacts"
+	@echo "  make help                    - Show this help message"
+	@echo "  make build                   - Build the korn binary for current platform"
+	@echo "  make VERSION=v1.0.0 build    - Build with specific version"
+	@echo "  make GOOS=linux GOARCH=amd64 build - Build for specific platform"
+	@echo "  make test                    - Run all tests with coverage"
+	@echo "  make lint                    - Run linting checks"
+	@echo "  make clean                   - Remove build artifacts"
 
 clean: ## Remove build artifacts
 	@echo "Cleaning build artifacts..."
@@ -101,4 +113,7 @@ test: fmt vet envtest ginkgo  ## Run tests
 
 .PHONY: build
 build: fmt vet $(OUTPUT) ## Build the korn binary
-	go build -mod=mod -o $(OUTPUT)/korn main.go
+	@echo "Building $(BINARY_NAME) for $(GOOS)/$(GOARCH)..."
+	GOOS=$(GOOS) GOARCH=$(GOARCH) go build -mod=mod -ldflags="-s -w -X main.version=$(VERSION)" -o $(OUTPUT)/$(BINARY_NAME) main.go
+	@echo "Binary built: $(OUTPUT)/$(BINARY_NAME)"
+
