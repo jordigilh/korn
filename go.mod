@@ -4,7 +4,7 @@ go 1.23.6
 
 require (
 	github.com/blang/semver/v4 v4.0.0
-	github.com/containers/podman/v5 v5.5.1
+	github.com/containers/podman/v5 v5.5.2
 	github.com/go-git/go-git/v5 v5.12.0
 	github.com/konflux-ci/application-api v0.0.0-20250324201748-5a9670bf7679
 	github.com/konflux-ci/release-service v0.0.0-20250612135914-9e5496ca607f
