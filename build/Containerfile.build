@@ -1,0 +1,11 @@
+ARG GOARCH=amd64
+
+FROM --platform=linux/${GOARCH} fedora:latest
+
+USER 0
+WORKDIR /src
+
+# Install build dependencies
+RUN dnf update -y && dnf install -y make git go dnf-plugins-core
+COPY rpm/podman.spec /tmp/podman.spec
+RUN dnf -y builddep /tmp/podman.spec || true
