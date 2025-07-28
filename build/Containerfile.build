@@ -1,6 +1,6 @@
 ARG GOARCH=amd64
 
-FROM --platform=linux/${GOARCH} fedora:latest
+FROM --platform=linux/${GOARCH} registry.fedoraproject.org/fedora:latest
 
 USER 0
 WORKDIR /src

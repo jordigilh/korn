@@ -7,8 +7,8 @@ on:
     branches: [ main ]
 
 jobs:
-  build-linux-amd64:
-    name: Build Linux AMD64
+  build:
+    name: Build Binary
     runs-on: ubuntu-latest
 
     steps:
@@ -20,7 +20,7 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y podman make
 
-    - name: Build for linux/amd64
+    - name: Build binary
       env:
         CGO_ENABLED: 0
         VERSION: dev-${{ github.sha }}
@@ -29,114 +29,13 @@ jobs:
 
     - name: Test binary
       run: |
-        binary_path=$(find output -name "*linux_amd64*" | head -1)
+        binary_path=$(find output -name "korn_*" | head -1)
         chmod +x "$binary_path"
         "$binary_path" --version || echo "Binary built successfully"
+        ls -lh "$binary_path"
 
     - name: Upload binary
       uses: actions/upload-artifact@v4
       with:
-        name: korn-linux-amd64
-        path: output/*linux_amd64*
-
-  build-linux-arm64:
-    name: Build Linux ARM64
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Install build dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y podman make
-
-    - name: Build for linux/arm64
-      env:
-        CGO_ENABLED: 0
-        VERSION: dev-${{ github.sha }}
-      run: |
-        make linux-arm64
-
-    - name: Test binary exists
-      run: |
-        binary_path=$(find output -name "*linux_arm64*" | head -1)
-        ls -la "$binary_path"
-        file "$binary_path"
-
-    - name: Upload binary
-      uses: actions/upload-artifact@v4
-      with:
-        name: korn-linux-arm64
-        path: output/*linux_arm64*
-
-  build-darwin-arm64:
-    name: Build Darwin ARM64
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Install build dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y podman make
-
-    - name: Build for darwin/arm64
-      env:
-        CGO_ENABLED: 0
-        VERSION: dev-${{ github.sha }}
-      run: |
-        make darwin-arm64
-
-    - name: Test binary exists
-      run: |
-        binary_path=$(find output -name "*darwin_arm64*" | head -1)
-        ls -la "$binary_path"
-        file "$binary_path"
-
-    - name: Upload binary
-      uses: actions/upload-artifact@v4
-      with:
-        name: korn-darwin-arm64
-        path: output/*darwin_arm64*
-
-  build-summary:
-    name: Build Summary
-    runs-on: ubuntu-latest
-    needs: [build-linux-amd64, build-linux-arm64, build-darwin-arm64]
-    if: always()
-
-    steps:
-    - name: Download all artifacts
-      uses: actions/download-artifact@v4
-
-    - name: Display build results
-      run: |
-        echo "## Build Results" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "| Platform | Status | Binary Size |" >> $GITHUB_STEP_SUMMARY
-        echo "|----------|--------|-------------|" >> $GITHUB_STEP_SUMMARY
-
-        if ls korn-linux-amd64/*linux_amd64* >/dev/null 2>&1; then
-          size=$(ls -lh korn-linux-amd64/*linux_amd64* | awk '{print $5}')
-          echo "| Linux AMD64 | ✅ Success | $size |" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "| Linux AMD64 | ❌ Failed | - |" >> $GITHUB_STEP_SUMMARY
-        fi
-
-        if ls korn-linux-arm64/*linux_arm64* >/dev/null 2>&1; then
-          size=$(ls -lh korn-linux-arm64/*linux_arm64* | awk '{print $5}')
-          echo "| Linux ARM64 | ✅ Success | $size |" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "| Linux ARM64 | ❌ Failed | - |" >> $GITHUB_STEP_SUMMARY
-        fi
-
-        if ls korn-darwin-arm64/*darwin_arm64* >/dev/null 2>&1; then
-          size=$(ls -lh korn-darwin-arm64/*darwin_arm64* | awk '{print $5}')
-          echo "| Darwin ARM64 | ✅ Success | $size |" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "| Darwin ARM64 | ❌ Failed | - |" >> $GITHUB_STEP_SUMMARY
-        fi
+        name: korn-binary
+        path: output/korn_*

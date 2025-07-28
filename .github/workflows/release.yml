@@ -7,62 +7,17 @@ on:
 
 jobs:
   build:
+    name: Build and Release
     runs-on: ubuntu-latest
 
-    strategy:
-      matrix:
-        include:
-          - goos: linux
-            goarch: amd64
-          - goos: linux
-            goarch: aarch64
-          - goos: darwin
-            goarch: aarch64
-
-    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
-
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: "go.mod"
-          cache: true
-
-      - name: Install libbtrfs-dev ubuntu packages to fix build error
+      - name: Install build dependencies
         run: |
-          sudo apt-get install -y \
-          btrfs-progs \
-          gcc \
-          git \
-          golang-go \
-          go-md2man \
-          iptables \
-          libassuan-dev \
-          libbtrfs-dev \
-          libc6-dev \
-          libdevmapper-dev \
-          libglib2.0-dev \
-          libgpgme-dev \
-          libgpg-error-dev \
-          libprotobuf-dev \
-          libprotobuf-c-dev \
-          libseccomp-dev \
-          libselinux1-dev \
-          libsystemd-dev \
-          make \
-          netavark \
-          passt \
-          pkg-config \
-          runc \
-          uidmap
-
-      - name: Install cross-compiler (Linux only)
-        if: matrix.goos == 'linux'
-        run: |
-          sudo apt update
-          sudo apt install -y gcc-${{ matrix.goarch }}-linux-gnu
+          sudo apt-get update
+          sudo apt-get install -y podman make
 
       - name: Get version from git tag
         id: version
@@ -71,23 +26,20 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Build binary
+        env:
+          CGO_ENABLED: 0
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          if [ "${{ matrix.goos }}" = "linux" ]; then
-            export CC=${{ matrix.goarch == 'arm64' && 'aarch64' || 'x86_64' }}-linux-gnu-gcc
-            export CGO_ENABLED=1
-          else
-            export CGO_ENABLED=0
-          fi
-          export GOOS=${{ matrix.goos }}
-          export GOARCH=${{ matrix.goarch }}
-          export VERSION=${{ steps.version.outputs.version }}
-          make build
+          make linux-amd64
           mkdir -p dist
 
-          # Find the built binary and rename it for release
-          BINARY_FILE=$(find output -name "korn_*_${{ matrix.goos }}_${{ matrix.goarch }}*" | head -1)
+      - name: Prepare release binary
+        run: |
+          # Find the built binary and copy it for release
+          BINARY_FILE=$(find output -name "korn_*" | head -1)
           if [ -n "$BINARY_FILE" ]; then
-            cp "$BINARY_FILE" "dist/korn-${{ steps.version.outputs.version }}-${{ matrix.goos }}-${{ matrix.goarch }}"
+            cp "$BINARY_FILE" "dist/korn-${{ steps.version.outputs.version }}"
+            ls -lh "dist/korn-${{ steps.version.outputs.version }}"
           else
             echo "Error: Binary file not found"
             ls -la output/
@@ -97,7 +49,7 @@ jobs:
       - name: Upload release binary
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/korn-${{ steps.version.outputs.version }}-${{ matrix.goos }}-${{ matrix.goarch }}
+          files: dist/korn-${{ steps.version.outputs.version }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

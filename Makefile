@@ -1,5 +1,4 @@
 
-
 # Version settings - can be overridden with make VERSION=vX.Y.Z build
 VERSION ?= $(shell git describe --tags --always --dirty || echo "dev")
 PROJECT_NAME := korn
@@ -22,13 +21,14 @@ CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 GOTOOLCHAIN := go$(GO_VERSION)
 
 COVERAGE_DIR ?= $(shell pwd)/coverage
-LOCALBIN ?= $(shell pwd)/bin
+LOCALBIN ?= $(shell pwd)/bin/$(shell uname -s)_$(shell uname -m)
 OUTPUT ?= $(shell pwd)/output
 
 # Default to recursive test if GINKGO_PKG not set
 GINKGO_PKG ?= -r
 GINKGO_VERBOSE ?= false
-GINKGO_FLAGS := $(if $(filter 1,$(GINKGO_VERBOSE)),-v) $(GINKGO_PKG) --mod=mod --randomize-all --randomize-suites --cover --coverprofile=coverage.out --coverpkg=./... --output-dir=$(COVERAGE_DIR)
+GINKGO_FLAKE_ATTEMPTS ?= 3
+GINKGO_FLAGS := $(if $(filter 1,$(GINKGO_VERBOSE)),-vv) $(GINKGO_PKG) --mod=mod --randomize-all --randomize-suites --cover --coverprofile=coverage.out --coverpkg=./... --output-dir=$(COVERAGE_DIR) --flake-attempts=$(GINKGO_FLAKE_ATTEMPTS) -p
 
 
 GOPATH ?= $(HOME)/go
@@ -39,10 +39,9 @@ else
 GOBIN=$(shell go env GOBIN)
 endif
 
-GOIMPORTS = $(GOBIN)/goimports
 GINKGO = $(GOBIN)/ginkgo
 
-.PHONY: help clean controller-gen build release linux-amd64 linux-arm64 darwin-arm64 test test-native fmt vet lint ginkgo envtest deps
+.PHONY: help clean controller-gen build build-ci linux-amd64 linux-arm64 darwin-arm64 test test-ci fmt vet vet-ci lint ginkgo envtest deps container-env
 
 help: ## Display this help message
 	@echo "Available targets:"
@@ -53,15 +52,18 @@ help: ## Display this help message
 	@echo "  make help                    - Show this help message"
 	@echo "  make deps                    - Install build dependencies (Linux: Fedora/RHEL/Debian/Ubuntu)"
 	@echo "  make build                   - Build the korn binary locally (native Go build)"
-	@echo "  make release                 - Build the korn binary using containers"
+	@echo "  make build-ci                - Build the korn binary using containers"
 	@echo "  make linux-amd64             - Build for Linux AMD64 (using containers)"
 	@echo "  make linux-arm64             - Build for Linux ARM64 (using containers)"
 	@echo "  make darwin-arm64            - Build for Darwin ARM64 (using containers)"
 	@echo "  make VERSION=v1.0.0 build    - Build locally with specific version"
 	@echo "  make VERSION=v1.0.0 linux-amd64 - Build Linux AMD64 with specific version"
-	@echo "  make GOOS=linux GOARCH=amd64 release - Build for specific platform using containers"
-	@echo "  make test                    - Run tests (container for Linux, native for Darwin)"
-	@echo "  make test-native             - Run tests natively (no container)"
+	@echo "  make GOOS=linux GOARCH=amd64 build-ci - Build for specific platform using containers"
+	@echo "  make test                    - Run tests locally (no container)"
+	@echo "  make test-ci                 - Run tests in container for CI"
+	@echo "  make vet-ci                  - Run go vet in container for CI"
+	@echo "  make GINKGO_FLAKE_ATTEMPTS=3 test - Run tests with 3 retry attempts for flaky tests"
+	@echo "  make container-env           - Build container environment for builds/tests"
 	@echo "  make lint                    - Run linting checks"
 	@echo "  make clean                   - Remove build artifacts"
 
@@ -75,6 +77,21 @@ $(LOCALBIN):
 
 $(OUTPUT):
 	mkdir -p $(OUTPUT)
+
+container-env: ## Build container environment for builds and tests
+	@echo "Building container environment..."
+	@if ! command -v podman >/dev/null 2>&1; then \
+		echo "Error: Podman is not installed or not in PATH"; \
+		exit 1; \
+	fi
+	@CONTAINER_PLATFORM=$${CONTAINER_PLATFORM:-linux/$$(go env GOARCH)}; \
+	CONTAINER_GOARCH=$${CONTAINER_GOARCH:-$$(go env GOARCH)}; \
+	CONTAINER_TAG=$${CONTAINER_TAG:-korn-build-env}; \
+	echo "Building container: $$CONTAINER_TAG (platform: $$CONTAINER_PLATFORM, goarch: $$CONTAINER_GOARCH)"; \
+	podman build --platform="$$CONTAINER_PLATFORM" \
+		--build-arg GOARCH="$$CONTAINER_GOARCH" \
+		-f build/Containerfile.build \
+		-t "$$CONTAINER_TAG" .
 
 $(GINKGO):
 	go install github.com/onsi/ginkgo/v2/ginkgo
@@ -111,131 +128,82 @@ fmt: ## Run go fmt against code
 	go fmt ./...
 
 .PHONY: vet
-vet: ## Run go vet against code
+vet: ## Run go vet against code locally
 	go vet ./...
 
-.PHONY: test
-test: fmt vet envtest ginkgo  ## Run tests (container for Linux, native for Darwin)
-	@echo "Running tests..."
-	@if [ "$(shell uname -s)" = "Linux" ]; then \
-		echo "Using container test environment for Linux..."; \
-		if ! command -v podman >/dev/null 2>&1; then \
-			echo "Error: Podman is not installed or not in PATH"; \
-			exit 1; \
-		fi; \
-		echo "Creating test environment image..."; \
-		podman build --platform=linux/$(shell go env GOARCH) \
-			-f build/Containerfile.build \
-			-t korn-test-env .; \
-		echo "Running tests in container..."; \
-		podman run --rm \
-			--platform=linux/$(shell go env GOARCH) \
-			-v $(shell pwd):/src:rw,Z \
-			-w /src \
-			-e ENVTEST_K8S_VERSION="$(ENVTEST_K8S_VERSION)" \
-			korn-test-env \
-			sh -c "go install sigs.k8s.io/controller-runtime/tools/setup-envtest@$(ENVTEST_VERSION) && go install github.com/onsi/ginkgo/v2/ginkgo && mkdir -p coverage bin && KUBEBUILDER_ASSETS=\"\$$(setup-envtest use $(ENVTEST_K8S_VERSION) --bin-dir . -p path)\" ENVTEST_K8S_VERSION=\"$(ENVTEST_K8S_VERSION)\" ginkgo $(GINKGO_FLAGS) && chown -R $(shell id -u):$(shell id -g) /src/coverage/ /src/bin/ || true"; \
-	else \
-		echo "Using native test environment for $(shell uname -s)..."; \
-		$(MAKE) deps; \
-		KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" ENVTEST_K8S_VERSION="$(ENVTEST_K8S_VERSION)" $(GOBIN)/ginkgo $(GINKGO_FLAGS); \
+.PHONY: vet-ci
+vet-ci: ## Run go vet against code in container for CI
+	@echo "Running go vet in container..."
+	@CONTAINER_TAG="korn-vet-env" make container-env
+	@if ! command -v podman >/dev/null 2>&1; then \
+		echo "Error: Podman is not installed or not in PATH"; \
+		exit 1; \
 	fi
+	@podman run --rm \
+		--platform=linux/$$(go env GOARCH) \
+		-v "$$(pwd)":/src:rw,Z \
+		-w /src \
+		korn-vet-env \
+		go vet ./...
 
-.PHONY: test-native
-test-native: fmt vet envtest ginkgo deps  ## Run tests natively (no container)
-	@echo "Running tests natively..."
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" ENVTEST_K8S_VERSION="$(ENVTEST_K8S_VERSION)" $(GOBIN)/ginkgo $(GINKGO_FLAGS)
+.PHONY: test
+test: fmt vet deps $(OUTPUT) envtest ginkgo  ## Run tests locally (no container)
+	@echo "Running tests locally..."
+	@ENVTEST_VERSION="$(ENVTEST_VERSION)" \
+		ENVTEST_K8S_VERSION="$(ENVTEST_K8S_VERSION)" \
+		GINKGO_FLAGS="$(GINKGO_FLAGS)" \
+		GINKGO_FLAKE_ATTEMPTS="$(GINKGO_FLAKE_ATTEMPTS)" \
+		COVERAGE_DIR="$(COVERAGE_DIR)" \
+		ENVTEST_BIN="$(ENVTEST)" \
+		ENVTEST_BIN_DIR="$(LOCALBIN)" \
+		LOCALBIN="$(LOCALBIN)" \
+		OUTPUT="$(OUTPUT)" \
+		USER_ID="$(shell id -u)" \
+		GROUP_ID="$(shell id -g)" \
+		./hack/run-test.sh
+
+.PHONY: test-ci
+test-ci: fmt vet-ci envtest ginkgo ## Run tests in container for CI (container for Linux hosts, native for others)
+	@ENVTEST_VERSION="$(ENVTEST_VERSION)" \
+		ENVTEST_K8S_VERSION="$(ENVTEST_K8S_VERSION)" \
+		GINKGO_FLAGS="$(GINKGO_FLAGS)" \
+		GINKGO_FLAKE_ATTEMPTS="$(GINKGO_FLAKE_ATTEMPTS)" \
+		COVERAGE_DIR="$(COVERAGE_DIR)" \
+		ENVTEST_BIN="$(ENVTEST)" \
+		ENVTEST_BIN_DIR="$(LOCALBIN)" \
+		LOCALBIN="$(LOCALBIN)" \
+		OUTPUT="$(OUTPUT)" \
+		GOARCH="$(shell go env GOARCH)" \
+		./hack/test-ci.sh
+
 
 
 .PHONY: deps
 deps: ## Install build dependencies on Linux systems (Fedora/RHEL/Debian/Ubuntu)
-	@echo "Checking build dependencies..."
-	@if [ "$(shell uname -s)" = "Linux" ]; then \
-		if command -v dnf >/dev/null 2>&1; then \
-			echo "Fedora/RHEL detected - installing build dependencies..."; \
-			if [ -f rpm/podman.spec ]; then \
-				sudo dnf -y builddep rpm/podman.spec || echo "Warning: Some dependencies may have failed to install"; \
-			else \
-				echo "Warning: rpm/podman.spec not found"; \
-			fi; \
-		elif command -v yum >/dev/null 2>&1; then \
-			echo "CentOS/RHEL (yum) detected - installing build dependencies..."; \
-			if [ -f rpm/podman.spec ]; then \
-				sudo yum-builddep -y rpm/podman.spec || echo "Warning: Some dependencies may have failed to install"; \
-			else \
-				echo "Warning: rpm/podman.spec not found"; \
-			fi; \
-		elif command -v apt-get >/dev/null 2>&1; then \
-			echo "Debian/Ubuntu detected - installing build dependencies..."; \
-			if [ -f build/debian-packages.txt ]; then \
-				packages=$$(cat build/debian-packages.txt | tr '\n' ' '); \
-				sudo apt-get update && sudo apt-get install -y $$packages \
-					|| echo "Warning: Some dependencies may have failed to install"; \
-			else \
-				echo "Warning: build/debian-packages.txt not found"; \
-			fi; \
-		else \
-			echo "Unsupported Linux distribution - skipping dependency installation"; \
-		fi; \
-	else \
-		echo "Non-Linux system detected - skipping dependency installation"; \
-	fi
+	@./hack/dependencies.sh
 
-.PHONY: release
-release: $(OUTPUT) ## Build the korn binary using containers (Linux, Darwin via linux/arm64, native for others)
-	@echo "Building $(BINARY_NAME) for $(GOOS)/$(GOARCH)..."
-	@if [ "$(GOOS)" = "darwin" ] && [ "$(GOARCH)" != "arm64" ]; then \
-		echo "Error: Darwin builds are only supported for arm64 architecture"; \
-		echo "Use 'make darwin-arm64' or set GOARCH=arm64"; \
-		exit 1; \
-	fi
-	@if [ "$(GOOS)" = "linux" ] || [ "$(GOOS)" = "darwin" ]; then \
-		echo "Using container build for $(GOOS)/$(GOARCH) target..."; \
-		if ! command -v podman >/dev/null 2>&1; then \
-			echo "Error: Podman is not installed or not in PATH"; \
-			exit 1; \
-		fi; \
-		if [ "$(GOOS)" = "linux" ]; then \
-			platform="linux/$(GOARCH)"; \
-			build_arch="$(GOARCH)"; \
-		else \
-			platform="linux/arm64"; \
-			build_arch="arm64"; \
-		fi; \
-		echo "Creating build environment image..."; \
-		podman build --platform=$$platform \
-			--build-arg GOARCH=$$build_arch \
-			-f build/Containerfile.build \
-			-t korn-build-env .; \
-		echo "Building binary in container..."; \
-		podman run --rm \
-			--platform=$$platform \
-			-v $(shell pwd):/src:rw,Z \
-			-w /src \
-			-e VERSION=$(VERSION) \
-			-e GOOS=$(GOOS) \
-			-e GOARCH=$(GOARCH) \
-			-e PROJECT_NAME=$(PROJECT_NAME) \
-			korn-build-env \
-			sh -c "mkdir -p output && GOOS=\$$GOOS GOARCH=\$$GOARCH go build -mod=mod -ldflags=\"-s -w -X main.version=\$$VERSION\" -o output/\$${PROJECT_NAME}_\$${VERSION}_\$${GOOS}_\$${GOARCH} main.go"; \
-	else \
-		echo "Using native build for $(GOOS) target..."; \
-		echo "Note: This target requires native Go environment for best compatibility"; \
-		GOOS=$(GOOS) GOARCH=$(GOARCH) go build -mod=mod -ldflags="-s -w -X main.version=$(VERSION)" -o $(OUTPUT)/$(BINARY_NAME) main.go; \
-	fi
-	@echo "Binary built: $(OUTPUT)/$(BINARY_NAME)"
+.PHONY: build-ci
+build-ci: $(OUTPUT) ## Build the korn binary using containers (Linux, Darwin via linux/arm64, native for others)
+	@chmod +x hack/build-ci.sh
+	@GOOS="$(GOOS)" \
+		GOARCH="$(GOARCH)" \
+		VERSION="$(VERSION)" \
+		PROJECT_NAME="$(PROJECT_NAME)" \
+		BINARY_NAME="$(BINARY_NAME)" \
+		OUTPUT="$(OUTPUT)" \
+		./hack/build-ci.sh
 
 .PHONY: linux-amd64
 linux-amd64: $(OUTPUT) ## Build for Linux AMD64
-	@GOOS=linux GOARCH=amd64 $(MAKE) release
+	@GOOS=linux GOARCH=amd64 $(MAKE) build-ci
 
 .PHONY: linux-arm64
 linux-arm64: $(OUTPUT) ## Build for Linux ARM64
-	@GOOS=linux GOARCH=arm64 $(MAKE) release
+	@GOOS=linux GOARCH=arm64 $(MAKE) build-ci
 
 .PHONY: darwin-arm64
 darwin-arm64: $(OUTPUT) ## Build for Darwin ARM64 (Apple Silicon)
-	@GOOS=darwin GOARCH=arm64 $(MAKE) release
+	@GOOS=darwin GOARCH=arm64 $(MAKE) build-ci
 
 .PHONY: build
 build: fmt vet deps $(OUTPUT) ## Build the korn binary locally (native Go build)
