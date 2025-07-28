@@ -1,6 +1,7 @@
 package konflux_test
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -15,6 +16,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
@@ -59,6 +61,16 @@ var _ = Describe("Snapshot functionality", func() {
 				testClientBuilder = fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(ns).WithRuntimeObjects(snapshots...).WithIndex(&applicationapiv1alpha1.Snapshot{}, "metadata.name", testutils.FilterBySnapshotName)
 				kornInstance.KubeClient = testClientBuilder.Build()
 
+				if expectedCount > 0 {
+					logrus.Debugf("expectedCount: %d", expectedCount)
+					labels := client.MatchingLabels{"pac.test.appstudio.openshift.io/event-type": "push"}
+					list := applicationapiv1alpha1.SnapshotList{}
+					err := kornInstance.KubeClient.List(context.TODO(), &list, &client.ListOptions{Namespace: kornInstance.Namespace}, labels)
+					if err != nil {
+						logrus.Errorf("error listing snapshots: %v", err)
+					}
+					Expect(list.Items).To(HaveLen(expectedCount))
+				}
 				result, err := kornInstance.ListSnapshots()
 				if expectError {
 					Expect(err).To(HaveOccurred(), description)
