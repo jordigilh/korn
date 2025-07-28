@@ -26,6 +26,7 @@ fi
 
 # Get the current Go architecture if GOARCH not set
 GOARCH=${GOARCH:-$(go env GOARCH)}
+COVERAGE_DIR=${COVERAGE_DIR:-/src/coverage}
 
 echo "Creating test environment image..."
 CONTAINER_PLATFORM="linux/${GOARCH}" \

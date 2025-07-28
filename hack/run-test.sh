@@ -99,9 +99,9 @@ fi
 # Fix ownership of generated files (only needed in container environments)
 if [[ -d "/src" ]] && [[ "${USER_ID}" =~ ^[0-9]+$ ]] && [[ "${GROUP_ID}" =~ ^[0-9]+$ ]]; then
     echo "Container environment detected - fixing file ownership..."
-	mkdir -p /src/coverage
-	cp  ${COVERAGE_DIR}/coverage.out /src/coverage/coverage.out
-	ls -laR /src
+    chown -R "${USER_ID}:${GROUP_ID}" "/src/coverage/}" 2>/dev/null || {
+        echo "Warning: Failed to change ownership of generated files"
+    }
 fi
 
 
