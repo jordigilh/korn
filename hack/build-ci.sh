@@ -13,8 +13,12 @@
 #   PROJECT_NAME - Name of the project/binary
 #   BINARY_NAME - Name of the output binary
 #   OUTPUT - Output directory for build artifacts
+#   CONTAINER_FULL_NAME - Full container image name (default: quay.io/jordigilh/korn-build-container:latest)
 
 set -euo pipefail
+
+# Default container image name
+CONTAINER_FULL_NAME=${CONTAINER_FULL_NAME:-"quay.io/jordigilh/korn-build-container:latest"}
 
 echo "Building ${BINARY_NAME} for ${GOOS}/${GOARCH}..."
 
@@ -45,11 +49,8 @@ if [ "${GOOS}" = "linux" ] || [ "${GOOS}" = "darwin" ]; then
         build_arch="arm64"
     fi
 
-    echo "Creating build environment image..."
-    CONTAINER_PLATFORM="${platform}" \
-    CONTAINER_GOARCH="${build_arch}" \
-    CONTAINER_TAG="korn-build-env" \
-    make container-env
+    echo "Pulling container image: ${CONTAINER_FULL_NAME}"
+    podman pull "${CONTAINER_FULL_NAME}"
 
     echo "Building binary in container..."
     podman run --rm \
@@ -60,7 +61,7 @@ if [ "${GOOS}" = "linux" ] || [ "${GOOS}" = "darwin" ]; then
         -e GOOS="${GOOS}" \
         -e GOARCH="${GOARCH}" \
         -e PROJECT_NAME="${PROJECT_NAME}" \
-        korn-build-env \
+        "${CONTAINER_FULL_NAME}" \
         sh -c "mkdir -p output && GOOS=\${GOOS} GOARCH=\${GOARCH} go build -mod=mod -ldflags=\"-s -w -X main.version=\${VERSION}\" -o output/\${PROJECT_NAME}_\${VERSION}_\${GOOS}_\${GOARCH} main.go"
 else
     # Native builds for other platforms

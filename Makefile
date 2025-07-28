@@ -24,6 +24,12 @@ COVERAGE_DIR ?= $(shell pwd)/coverage
 LOCALBIN ?= $(shell pwd)/bin/$(shell uname -s)_$(shell uname -m)
 OUTPUT ?= $(shell pwd)/output
 
+# Container image settings
+CONTAINER_REGISTRY ?= quay.io/jordigilh
+CONTAINER_IMAGE ?= korn-build-container
+CONTAINER_TAG ?= latest
+CONTAINER_FULL_NAME := $(CONTAINER_REGISTRY)/$(CONTAINER_IMAGE):$(CONTAINER_TAG)
+
 # Default to recursive test if GINKGO_PKG not set
 GINKGO_PKG ?= -r
 GINKGO_VERBOSE ?= false
@@ -41,7 +47,7 @@ endif
 
 GINKGO = $(GOBIN)/ginkgo
 
-.PHONY: help clean controller-gen build build-ci linux-amd64 linux-arm64 darwin-arm64 test test-ci fmt vet vet-ci lint ginkgo envtest deps container-env
+.PHONY: help clean controller-gen build build-ci linux-amd64 linux-arm64 darwin-arm64 test test-ci fmt vet vet-ci lint ginkgo envtest deps container-build container-push container-clean
 
 help: ## Display this help message
 	@echo "Available targets:"
@@ -63,7 +69,9 @@ help: ## Display this help message
 	@echo "  make test-ci                 - Run tests in container for CI"
 	@echo "  make vet-ci                  - Run go vet in container for CI"
 	@echo "  make GINKGO_FLAKE_ATTEMPTS=3 test - Run tests with 3 retry attempts for flaky tests"
-	@echo "  make container-env           - Build container environment for builds/tests"
+	@echo "  make container-build         - Build multiplatform container images"
+	@echo "  make container-push          - Push multiplatform container images to registry"
+	@echo "  make container-clean         - Clean multiplatform container images"
 	@echo "  make lint                    - Run linting checks"
 	@echo "  make clean                   - Remove build artifacts"
 
@@ -78,20 +86,34 @@ $(LOCALBIN):
 $(OUTPUT):
 	mkdir -p $(OUTPUT)
 
-container-env: ## Build container environment for builds and tests
-	@echo "Building container environment..."
+container-clean: ## Clean multiplatform container images
+	@echo "Cleaning multiplatform container images..."
 	@if ! command -v podman >/dev/null 2>&1; then \
 		echo "Error: Podman is not installed or not in PATH"; \
 		exit 1; \
 	fi
-	@CONTAINER_PLATFORM=$${CONTAINER_PLATFORM:-linux/$$(go env GOARCH)}; \
-	CONTAINER_GOARCH=$${CONTAINER_GOARCH:-$$(go env GOARCH)}; \
-	CONTAINER_TAG=$${CONTAINER_TAG:-korn-build-env}; \
-	echo "Building container: $$CONTAINER_TAG (platform: $$CONTAINER_PLATFORM, goarch: $$CONTAINER_GOARCH)"; \
-	podman build --platform="$$CONTAINER_PLATFORM" \
-		--build-arg GOARCH="$$CONTAINER_GOARCH" \
-		-f build/Containerfile.build \
-		-t "$$CONTAINER_TAG" .
+	@podman rmi -f $(CONTAINER_FULL_NAME)-amd64 || true
+	@podman rmi -f $(CONTAINER_FULL_NAME)-arm64 || true
+	@podman rmi -f $(CONTAINER_FULL_NAME) || true
+	@echo "Container images cleaned"
+
+container-build: ## Build multiplatform container images for linux/amd64 and linux/arm64
+	@chmod +x hack/container-build.sh
+	@CONTAINER_FULL_NAME="$(CONTAINER_FULL_NAME)" \
+		./hack/container-build.sh
+
+container-push:  ## Push multiplatform container images to registry
+	@echo "Pushing multiplatform container images to $(CONTAINER_REGISTRY)..."
+	@if ! command -v podman >/dev/null 2>&1; then \
+		echo "Error: Podman is not installed or not in PATH"; \
+		exit 1; \
+	fi
+	@echo "Pushing individual architecture images..."
+	@podman push "$(CONTAINER_FULL_NAME)-amd64"
+	@podman push "$(CONTAINER_FULL_NAME)-arm64"
+	@echo "Pushing multiplatform manifest..."
+	@podman manifest push "$(CONTAINER_FULL_NAME)" "docker://$(CONTAINER_FULL_NAME)"
+	@echo "Successfully pushed: $(CONTAINER_FULL_NAME)"
 
 $(GINKGO):
 	go install github.com/onsi/ginkgo/v2/ginkgo
@@ -134,16 +156,17 @@ vet: ## Run go vet against code locally
 .PHONY: vet-ci
 vet-ci: ## Run go vet against code in container for CI
 	@echo "Running go vet in container..."
-	@CONTAINER_TAG="korn-vet-env" make container-env
 	@if ! command -v podman >/dev/null 2>&1; then \
 		echo "Error: Podman is not installed or not in PATH"; \
 		exit 1; \
 	fi
+	@echo "Pulling container image: $(CONTAINER_FULL_NAME)"
+	@podman pull "$(CONTAINER_FULL_NAME)"
 	@podman run --rm \
 		--platform=linux/$$(go env GOARCH) \
 		-v "$$(pwd)":/src:rw,Z \
 		-w /src \
-		korn-vet-env \
+		"$(CONTAINER_FULL_NAME)" \
 		go vet ./...
 
 .PHONY: test
@@ -168,12 +191,13 @@ test-ci: fmt vet-ci envtest ginkgo ## Run tests in container for CI (container f
 		ENVTEST_K8S_VERSION="$(ENVTEST_K8S_VERSION)" \
 		GINKGO_FLAGS="$(GINKGO_FLAGS)" \
 		GINKGO_FLAKE_ATTEMPTS="$(GINKGO_FLAKE_ATTEMPTS)" \
-		COVERAGE_DIR="$(COVERAGE_DIR)" \
+		COVERAGE_DIR="/src/coverage" \
 		ENVTEST_BIN="$(ENVTEST)" \
 		ENVTEST_BIN_DIR="$(LOCALBIN)" \
 		LOCALBIN="$(LOCALBIN)" \
 		OUTPUT="$(OUTPUT)" \
 		GOARCH="$(shell go env GOARCH)" \
+		CONTAINER_FULL_NAME="$(CONTAINER_FULL_NAME)" \
 		./hack/test-ci.sh
 
 
@@ -191,6 +215,7 @@ build-ci: $(OUTPUT) ## Build the korn binary using containers (Linux, Darwin via
 		PROJECT_NAME="$(PROJECT_NAME)" \
 		BINARY_NAME="$(BINARY_NAME)" \
 		OUTPUT="$(OUTPUT)" \
+		CONTAINER_FULL_NAME="$(CONTAINER_FULL_NAME)" \
 		./hack/build-ci.sh
 
 .PHONY: linux-amd64

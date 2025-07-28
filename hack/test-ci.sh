@@ -14,8 +14,12 @@
 #   COVERAGE_DIR - Directory for coverage output
 #   OUTPUT - Output directory for build artifacts
 #   GOARCH - Target architecture for container build
+#   CONTAINER_FULL_NAME - Full container image name (default: quay.io/jordigilh/korn-build-container:latest)
 
 set -euo pipefail
+
+# Default container image name
+CONTAINER_FULL_NAME=${CONTAINER_FULL_NAME:-"quay.io/jordigilh/korn-build-container:latest"}
 
 echo "Running tests for CI..."
 # Check if podman is available
@@ -28,11 +32,8 @@ fi
 GOARCH=${GOARCH:-$(go env GOARCH)}
 COVERAGE_DIR=${COVERAGE_DIR:-/src/coverage}
 
-echo "Creating test environment image..."
-CONTAINER_PLATFORM="linux/${GOARCH}" \
-CONTAINER_GOARCH="${GOARCH}" \
-CONTAINER_TAG="korn-test-env" \
-make container-env
+echo "Pulling container image: ${CONTAINER_FULL_NAME}"
+podman pull "${CONTAINER_FULL_NAME}"
 
 echo "Running tests in container..."
 podman run --rm \
@@ -47,6 +48,6 @@ podman run --rm \
 	-e OUTPUT="${OUTPUT}" \
 	-e USER_ID="$(id -u)" \
 	-e GROUP_ID="$(id -g)" \
-	korn-test-env \
+	"${CONTAINER_FULL_NAME}" \
 	/src/hack/run-test.sh
 echo "Tests completed successfully."
