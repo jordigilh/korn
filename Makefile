@@ -34,7 +34,7 @@ CONTAINER_FULL_NAME := $(CONTAINER_REGISTRY)/$(CONTAINER_IMAGE):$(CONTAINER_TAG)
 GINKGO_PKG ?= -r
 GINKGO_VERBOSE ?= true
 GINKGO_FLAKE_ATTEMPTS ?= 3
-GINKGO_FLAGS := $(if $(filter 1,$(GINKGO_VERBOSE)),-vv) $(GINKGO_PKG) --mod=mod --randomize-all --randomize-suites --cover --coverprofile=coverage.out --coverpkg=./... --output-dir=$(COVERAGE_DIR) --flake-attempts=$(GINKGO_FLAKE_ATTEMPTS) -p
+GINKGO_FLAGS := $(if $(filter true,$(GINKGO_VERBOSE)),-vv) $(GINKGO_PKG) --mod=mod --randomize-all --randomize-suites --cover --coverprofile=coverage.out --coverpkg=./... --output-dir=$(COVERAGE_DIR) --flake-attempts=$(GINKGO_FLAKE_ATTEMPTS) -p
 
 
 GOPATH ?= $(HOME)/go
@@ -69,6 +69,8 @@ help: ## Display this help message
 	@echo "  make test-ci                 - Run tests in container for CI"
 	@echo "  make vet-ci                  - Run go vet in container for CI"
 	@echo "  make GINKGO_FLAKE_ATTEMPTS=3 test - Run tests with 3 retry attempts for flaky tests"
+	@echo "  make GINKGO_VERBOSE=false test - Run tests with quiet output"
+	@echo "  make GINKGO_VERBOSE=true test  - Run tests with verbose output (default)"
 	@echo "  make container-build         - Build multiplatform container images"
 	@echo "  make container-push          - Push multiplatform container images to registry"
 	@echo "  make container-clean         - Clean multiplatform container images"
@@ -176,6 +178,7 @@ test: fmt vet deps $(OUTPUT) envtest ginkgo  ## Run tests locally (no container)
 		ENVTEST_K8S_VERSION="$(ENVTEST_K8S_VERSION)" \
 		GINKGO_FLAGS="$(GINKGO_FLAGS)" \
 		GINKGO_FLAKE_ATTEMPTS="$(GINKGO_FLAKE_ATTEMPTS)" \
+		GINKGO_VERBOSE="$(GINKGO_VERBOSE)" \
 		COVERAGE_DIR="$(COVERAGE_DIR)" \
 		ENVTEST_BIN="$(ENVTEST)" \
 		ENVTEST_BIN_DIR="$(LOCALBIN)" \
@@ -191,6 +194,7 @@ test-ci: fmt vet-ci envtest ginkgo ## Run tests in container for CI (container f
 		ENVTEST_K8S_VERSION="$(ENVTEST_K8S_VERSION)" \
 		GINKGO_FLAGS="$(GINKGO_FLAGS)" \
 		GINKGO_FLAKE_ATTEMPTS="$(GINKGO_FLAKE_ATTEMPTS)" \
+		GINKGO_VERBOSE="$(GINKGO_VERBOSE)" \
 		COVERAGE_DIR="/src/coverage" \
 		ENVTEST_BIN="$(ENVTEST)" \
 		ENVTEST_BIN_DIR="$(LOCALBIN)" \

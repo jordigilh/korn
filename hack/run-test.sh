@@ -4,8 +4,9 @@
 # This script runs tests inside a container environment with proper setup
 #
 # Usage:
-#   ./hack/run-test.sh                              # Run with default values
-#   GINKGO_VERBOSE=1 ./hack/run-test.sh             # Run with verbose output
+#   ./hack/run-test.sh                              # Run with default values (verbose output enabled)
+#   GINKGO_VERBOSE=false ./hack/run-test.sh         # Run with quiet output
+#   GINKGO_VERBOSE=true ./hack/run-test.sh          # Run with verbose output (explicit)
 #   GINKGO_FLAKE_ATTEMPTS=3 ./hack/run-test.sh      # Run with 3 retry attempts for flaky tests
 #   GINKGO_FLAGS="-r --dry-run" ./hack/run-test.sh  # Run with custom flags
 #
@@ -15,11 +16,12 @@ set -xeuo pipefail
 
 uname -a
 
+env | sort
 # Get parameters from environment or use defaults (same as Makefile)
 ENVTEST_VERSION=${ENVTEST_VERSION:-"release-0.20"}
 ENVTEST_K8S_VERSION=${ENVTEST_K8S_VERSION:-"1.32.0"}
 GINKGO_PKG=${GINKGO_PKG:-"-r"}
-GINKGO_VERBOSE=${GINKGO_VERBOSE:-"false"}
+GINKGO_VERBOSE=${GINKGO_VERBOSE:-"true"}
 GINKGO_FLAKE_ATTEMPTS=${GINKGO_FLAKE_ATTEMPTS:-"3"}
 USER_ID=${USER_ID:-$(id -u)}
 GROUP_ID=${GROUP_ID:-$(id -g)}
@@ -28,11 +30,11 @@ LOCALBIN=${LOCALBIN:-$(pwd)/bin/$(uname -s)_$(uname -m)}
 OUTPUT=${OUTPUT:-$(pwd)/output}
 
 # Set default GINKGO_FLAGS using the same logic as the Makefile
-# GINKGO_FLAGS := $(if $(filter 1,$(GINKGO_VERBOSE)),-vv) $(GINKGO_PKG) --mod=mod --randomize-all --randomize-suites --cover --coverprofile=coverage.out --coverpkg=./... --output-dir=$(COVERAGE_DIR) --flake-attempts=$(GINKGO_FLAKE_ATTEMPTS) -p
+# GINKGO_FLAGS := $(if $(filter true,$(GINKGO_VERBOSE)),-vv) $(GINKGO_PKG) --mod=mod --randomize-all --randomize-suites --cover --coverprofile=coverage.out --coverpkg=./... --output-dir=$(COVERAGE_DIR) --flake-attempts=$(GINKGO_FLAKE_ATTEMPTS) -p
 if [[ -z "${GINKGO_FLAGS:-}" ]]; then
     # Construct default GINKGO_FLAGS using the same logic as the Makefile
     GINKGO_FLAGS=""
-    if [[ "${GINKGO_VERBOSE}" == "1" ]]; then
+    if [[ "${GINKGO_VERBOSE}" == "true" ]]; then
         GINKGO_FLAGS="${GINKGO_FLAGS} -vv"
     fi
     GINKGO_FLAGS="${GINKGO_FLAGS} ${GINKGO_PKG} --mod=mod --randomize-all --randomize-suites --cover --coverprofile=coverage.out --coverpkg=./... --output-dir=${COVERAGE_DIR} --flake-attempts=${GINKGO_FLAKE_ATTEMPTS} -p"

@@ -11,6 +11,7 @@
 #   ENVTEST_K8S_VERSION - Kubernetes version for test environment
 #   GINKGO_FLAGS - Flags to pass to ginkgo
 #   GINKGO_FLAKE_ATTEMPTS - Number of retry attempts for flaky tests
+#   GINKGO_VERBOSE - Enable verbose ginkgo output (default: true)
 #   COVERAGE_DIR - Directory for coverage output
 #   OUTPUT - Output directory for build artifacts
 #   GOARCH - Target architecture for container build
@@ -31,6 +32,7 @@ fi
 # Get the current Go architecture if GOARCH not set
 GOARCH=${GOARCH:-$(go env GOARCH)}
 COVERAGE_DIR=${COVERAGE_DIR:-/src/coverage}
+OUTPUT=${OUTPUT:-/src/output}
 
 echo "Pulling container image: ${CONTAINER_FULL_NAME}"
 podman pull "${CONTAINER_FULL_NAME}"
@@ -44,6 +46,7 @@ podman run --rm \
 	-e ENVTEST_K8S_VERSION="${ENVTEST_K8S_VERSION}" \
 	-e GINKGO_FLAGS="${GINKGO_FLAGS}" \
 	-e GINKGO_FLAKE_ATTEMPTS="${GINKGO_FLAKE_ATTEMPTS}" \
+	-e GINKGO_VERBOSE="${GINKGO_VERBOSE}" \
 	-e COVERAGE_DIR="${COVERAGE_DIR}" \
 	-e OUTPUT="${OUTPUT}" \
 	-e USER_ID="$(id -u)" \
