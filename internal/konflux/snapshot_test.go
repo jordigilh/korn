@@ -11,6 +11,7 @@ import (
 	applicationapiv1alpha1 "github.com/konflux-ci/application-api/api/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -37,6 +38,8 @@ var _ = Describe("Snapshot functionality", func() {
 	)
 
 	BeforeEach(func() {
+		logrus.SetOutput(GinkgoWriter)
+		logrus.SetLevel(logrus.DebugLevel)
 		scheme = createFakeScheme()
 		ns = newNamespace(testutils.TestNamespace)
 

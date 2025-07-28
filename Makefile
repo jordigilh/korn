@@ -32,7 +32,7 @@ CONTAINER_FULL_NAME := $(CONTAINER_REGISTRY)/$(CONTAINER_IMAGE):$(CONTAINER_TAG)
 
 # Default to recursive test if GINKGO_PKG not set
 GINKGO_PKG ?= -r
-GINKGO_VERBOSE ?= false
+GINKGO_VERBOSE ?= true
 GINKGO_FLAKE_ATTEMPTS ?= 3
 GINKGO_FLAGS := $(if $(filter 1,$(GINKGO_VERBOSE)),-vv) $(GINKGO_PKG) --mod=mod --randomize-all --randomize-suites --cover --coverprofile=coverage.out --coverpkg=./... --output-dir=$(COVERAGE_DIR) --flake-attempts=$(GINKGO_FLAKE_ATTEMPTS) -p
 

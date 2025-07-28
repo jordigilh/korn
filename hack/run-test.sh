@@ -28,12 +28,12 @@ LOCALBIN=${LOCALBIN:-$(pwd)/bin/$(uname -s)_$(uname -m)}
 OUTPUT=${OUTPUT:-$(pwd)/output}
 
 # Set default GINKGO_FLAGS using the same logic as the Makefile
-# GINKGO_FLAGS := $(if $(filter 1,$(GINKGO_VERBOSE)),-v) $(GINKGO_PKG) --mod=mod --randomize-all --randomize-suites --cover --coverprofile=coverage.out --coverpkg=./... --output-dir=$(COVERAGE_DIR)
+# GINKGO_FLAGS := $(if $(filter 1,$(GINKGO_VERBOSE)),-vv) $(GINKGO_PKG) --mod=mod --randomize-all --randomize-suites --cover --coverprofile=coverage.out --coverpkg=./... --output-dir=$(COVERAGE_DIR) --flake-attempts=$(GINKGO_FLAKE_ATTEMPTS) -p
 if [[ -z "${GINKGO_FLAGS:-}" ]]; then
     # Construct default GINKGO_FLAGS using the same logic as the Makefile
     GINKGO_FLAGS=""
     if [[ "${GINKGO_VERBOSE}" == "1" ]]; then
-        GINKGO_FLAGS="${GINKGO_FLAGS} -v"
+        GINKGO_FLAGS="${GINKGO_FLAGS} -vv"
     fi
     GINKGO_FLAGS="${GINKGO_FLAGS} ${GINKGO_PKG} --mod=mod --randomize-all --randomize-suites --cover --coverprofile=coverage.out --coverpkg=./... --output-dir=${COVERAGE_DIR} --flake-attempts=${GINKGO_FLAKE_ATTEMPTS} -p"
     # Clean up leading space
@@ -91,9 +91,9 @@ echo "Running ginkgo tests..."
 if [[ -n "${GINKGO_FLAGS}" ]]; then
     # Use array to properly handle multiple flags
     read -ra FLAGS <<< "${GINKGO_FLAGS}"
-    ginkgo "${FLAGS[@]}"
+    "${LOCALBIN}/ginkgo" "${FLAGS[@]}"
 else
-    ginkgo
+    "${LOCALBIN}/ginkgo"
 fi
 
 # Fix ownership of generated files (only needed in container environments)
