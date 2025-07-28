@@ -62,12 +62,12 @@ if [ "${GOOS}" = "linux" ] || [ "${GOOS}" = "darwin" ]; then
         -e GOARCH="${GOARCH}" \
         -e PROJECT_NAME="${PROJECT_NAME}" \
         "${CONTAINER_FULL_NAME}" \
-        sh -c "mkdir -p output && GOOS=\${GOOS} GOARCH=\${GOARCH} go build -mod=mod -ldflags=\"-s -w -X main.version=\${VERSION}\" -o output/\${PROJECT_NAME}_\${VERSION}_\${GOOS}_\${GOARCH} main.go"
+        sh -c "mkdir -p output && CGO_ENABLED=0 GOOS=\${GOOS} GOARCH=\${GOARCH} go build -mod=mod -ldflags=\"-s -w -X main.version=\${VERSION}\" -o output/\${PROJECT_NAME}_\${VERSION}_\${GOOS}_\${GOARCH} main.go"
 else
     # Native builds for other platforms
     echo "Using native build for ${GOOS} target..."
     echo "Note: This target requires native Go environment for best compatibility"
-    GOOS="${GOOS}" GOARCH="${GOARCH}" go build -mod=mod -ldflags="-s -w -X main.version=${VERSION}" -o "${OUTPUT}/${BINARY_NAME}" main.go
+    CGO_ENABLED=0 GOOS="${GOOS}" GOARCH="${GOARCH}" go build -mod=mod -ldflags="-s -w -X main.version=${VERSION}" -o "${OUTPUT}/${BINARY_NAME}" main.go
 fi
 
 echo "Binary built: ${OUTPUT}/${BINARY_NAME}"
