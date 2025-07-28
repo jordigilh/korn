@@ -50,10 +50,13 @@ func (k Korn) ListSnapshots() ([]applicationapiv1alpha1.Snapshot, error) {
 		}
 		labels["appstudio.openshift.io/component"] = comp.Name
 	}
+	logrus.Debugf("labels: %v", labels)
+	logrus.Debugf("namespace: %s", k.Namespace)
 	err := k.KubeClient.List(context.TODO(), &list, &client.ListOptions{Namespace: k.Namespace}, labels)
 	if err != nil {
 		return nil, err
 	}
+	logrus.Debugf("list of snapshots: %v", list.Items)
 	sort.Slice(list.Items,
 		func(i, j int) bool {
 			return list.Items[j].ObjectMeta.CreationTimestamp.Before(&list.Items[i].ObjectMeta.CreationTimestamp)

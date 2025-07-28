@@ -1,0 +1,53 @@
+name: Code Quality
+
+on:
+  pull_request:
+    branches: [ main ]
+  push:
+    branches: [ main ]
+
+jobs:
+  fmt:
+    name: Go Format Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run go fmt
+        run: |
+          make fmt
+          # Check if any files were modified by go fmt
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "❌ Code is not properly formatted. Please run 'make fmt' or 'go fmt ./...'"
+            git diff
+            exit 1
+          else
+            echo "✅ Code is properly formatted"
+          fi
+
+  vet:
+    name: Go Vet Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run go vet
+        run: |
+          make vet-ci
+          echo "✅ Go vet passed successfully"

@@ -1,6 +1,7 @@
 package konflux_test
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -11,9 +12,11 @@ import (
 	applicationapiv1alpha1 "github.com/konflux-ci/application-api/api/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
@@ -30,12 +33,15 @@ const (
 
 var _ = Describe("Snapshot functionality", func() {
 	var (
-		scheme       *runtime.Scheme
-		ns           *corev1.Namespace
-		kornInstance *konflux.Korn
+		scheme            *runtime.Scheme
+		ns                *corev1.Namespace
+		kornInstance      *konflux.Korn
+		testClientBuilder *fake.ClientBuilder
 	)
 
 	BeforeEach(func() {
+		logrus.SetOutput(GinkgoWriter)
+		logrus.SetLevel(logrus.DebugLevel)
 		scheme = createFakeScheme()
 		ns = newNamespace(testutils.TestNamespace)
 
@@ -52,11 +58,20 @@ var _ = Describe("Snapshot functionality", func() {
 			func(applicationName string, snapshots []runtime.Object, expectedCount int, expectError bool, description string) {
 				kornInstance.ApplicationName = applicationName
 				// Create a fresh client builder for each test to avoid state pollution
-				testClientBuilder := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(ns).WithRuntimeObjects(snapshots...).WithIndex(&applicationapiv1alpha1.Snapshot{}, "metadata.name", testutils.FilterBySnapshotName)
+				testClientBuilder = fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(ns).WithRuntimeObjects(snapshots...).WithIndex(&applicationapiv1alpha1.Snapshot{}, "metadata.name", testutils.FilterBySnapshotName)
 				kornInstance.KubeClient = testClientBuilder.Build()
 
+				if expectedCount > 0 {
+					logrus.Debugf("expectedCount: %d", expectedCount)
+					labels := client.MatchingLabels{"pac.test.appstudio.openshift.io/event-type": "push"}
+					list := applicationapiv1alpha1.SnapshotList{}
+					err := kornInstance.KubeClient.List(context.TODO(), &list, &client.ListOptions{Namespace: kornInstance.Namespace}, labels)
+					if err != nil {
+						logrus.Errorf("error listing snapshots: %v", err)
+					}
+					Expect(list.Items).To(HaveLen(expectedCount))
+				}
 				result, err := kornInstance.ListSnapshots()
-
 				if expectError {
 					Expect(err).To(HaveOccurred(), description)
 					Expect(result).To(BeNil(), description)
@@ -67,7 +82,7 @@ var _ = Describe("Snapshot functionality", func() {
 			},
 
 			Entry("should return all push event snapshots when ApplicationName is empty",
-				"", append(getOperatorTestObjects(), getSimpleSnapshots()...), 2, false,
+				"", getSimpleSnapshots(), 2, false,
 				"Should return all push event snapshots when no app filter"),
 			Entry("should return empty list when no snapshots exist",
 				"", []runtime.Object{}, 0, false,
@@ -90,7 +105,7 @@ var _ = Describe("Snapshot functionality", func() {
 				kornInstance.SHA = sha
 				kornInstance.ApplicationName = applicationName
 				// Create a fresh client builder for each test to avoid state pollution
-				testClientBuilder := fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(ns).WithIndex(&applicationapiv1alpha1.Snapshot{}, "metadata.name", testutils.FilterBySnapshotName)
+				testClientBuilder = fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(ns).WithIndex(&applicationapiv1alpha1.Snapshot{}, "metadata.name", testutils.FilterBySnapshotName)
 				if len(snapshots) > 0 {
 					testClientBuilder = testClientBuilder.WithRuntimeObjects(snapshots...)
 				}

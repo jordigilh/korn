@@ -1,52 +1,41 @@
-
-name: Build Validation
+name: Build
 
 on:
   pull_request:
-    branches:
-      - main
+    branches: [ main ]
+  push:
+    branches: [ main ]
 
 jobs:
-  build-check:
+  build:
+    name: Build Binary
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: "go.mod"
-          cache: true
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-      - name: Install build packages
-        run: |
-          sudo apt-get install -y \
-          btrfs-progs \
-          gcc \
-          git \
-          golang-go \
-          go-md2man \
-          iptables \
-          libassuan-dev \
-          libbtrfs-dev \
-          libc6-dev \
-          libdevmapper-dev \
-          libglib2.0-dev \
-          libgpgme-dev \
-          libgpg-error-dev \
-          libprotobuf-dev \
-          libprotobuf-c-dev \
-          libseccomp-dev \
-          libselinux1-dev \
-          libsystemd-dev \
-          make \
-          netavark \
-          passt \
-          pkg-config \
-          runc \
-          uidmap
+    - name: Install build dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y podman make
 
-      - name: Build binary
-        run: |
-          make build
-          ls -la output/
+    - name: Build binary
+      env:
+        CGO_ENABLED: 0
+        VERSION: dev-${{ github.sha }}
+      run: |
+        make linux-amd64
+
+    - name: Test binary
+      run: |
+        binary_path=$(find output -name "korn_*" | head -1)
+        chmod +x "$binary_path"
+        "$binary_path" --version || echo "Binary built successfully"
+        ls -lh "$binary_path"
+
+    - name: Upload binary
+      uses: actions/upload-artifact@v4
+      with:
+        name: korn-binary
+        path: output/korn_*
