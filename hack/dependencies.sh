@@ -13,9 +13,9 @@
 
 set -euo pipefail
 
-echo "Checking build dependencies..."
 
 if [ "$(uname -s)" = "Linux" ]; then
+    echo "Checking build dependencies..."
     if command -v dnf >/dev/null 2>&1; then
         echo "Fedora/RHEL detected - installing build dependencies..."
         if [ -f rpm/podman.spec ]; then
@@ -42,8 +42,5 @@ if [ "$(uname -s)" = "Linux" ]; then
     else
         echo "Unsupported Linux distribution - skipping dependency installation"
     fi
-else
-    echo "Non-Linux system detected - skipping dependency installation"
+    echo "Dependency installation completed."
 fi
-
-echo "Dependency installation completed."

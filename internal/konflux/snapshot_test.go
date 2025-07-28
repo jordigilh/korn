@@ -46,10 +46,7 @@ var _ = Describe("Snapshot functionality", func() {
 		ns = newNamespace(testutils.TestNamespace)
 
 		kornInstance = &konflux.Korn{
-			Namespace:       testutils.TestNamespace,
-			ApplicationName: testutils.TestAppName,
-			SnapshotName:    testSnapshotName,
-			SHA:             testSHA,
+			Namespace: testutils.TestNamespace,
 		}
 	})
 

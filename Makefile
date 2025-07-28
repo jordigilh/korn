@@ -235,7 +235,7 @@ darwin-arm64: $(OUTPUT) ## Build for Darwin ARM64 (Apple Silicon)
 	@GOOS=darwin GOARCH=arm64 $(MAKE) build-ci
 
 .PHONY: build
-build: fmt vet deps $(OUTPUT) ## Build the korn binary locally (native Go build)
-	@echo "Building $(BINARY_NAME) for $(GOOS)/$(GOARCH) locally..."
-	@GOOS=$(GOOS) GOARCH=$(GOARCH) go build -mod=mod -ldflags="-s -w -X main.version=$(VERSION)" -o $(OUTPUT)/$(BINARY_NAME) main.go
-	@echo "Binary built: $(OUTPUT)/$(BINARY_NAME)"
+build: deps fmt vet $(OUTPUT) ## Build the korn binary locally (native Go build)
+	@echo "Building korn for $(GOOS)/$(GOARCH) locally..."
+	@GOOS=$(GOOS) GOARCH=$(GOARCH) go build -mod=mod -ldflags="-s -w -X main.version=$(VERSION)" -o $(OUTPUT)/korn main.go
+	@echo "Binary built: $(OUTPUT)/korn"
