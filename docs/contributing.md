@@ -389,6 +389,22 @@ export NAMESPACE=test-namespace
 - Help others learn and grow
 - Follow project guidelines
 
+## AI-Generated Content Notice
+
+Contributors should be aware that portions of this codebase have been generated or enhanced using AI tools (primarily Cursor's AI capabilities):
+
+### AI-Generated Components:
+- **Unit Tests**: Many test files in `*_test.go` contain AI-generated test cases and mock implementations
+- **Documentation**: Parts of the `docs/` directory, including examples and command references, were created with AI assistance
+- **Code Comments**: Some inline documentation and function comments were generated or improved using AI
+- **Refactoring**: Various code improvements and structural changes were implemented with AI guidance
+
+### For Contributors:
+- When reviewing AI-generated code, pay special attention to logic correctness and edge cases
+- Feel free to refactor or improve AI-generated content as needed
+- All AI-generated content should be treated as any other code contribution - subject to review and testing
+- If you use AI tools for your contributions, please ensure the generated code is thoroughly tested and reviewed
+
 ## License
 
 By contributing to Korn, you agree that your contributions will be licensed under the same license as the project.

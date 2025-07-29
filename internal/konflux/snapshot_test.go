@@ -1,7 +1,9 @@
+// NOTE: This file contains AI-generated test cases and helper functions (Cursor)
+// All test logic has been reviewed and validated for correctness
+
 package konflux_test
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -18,7 +20,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
@@ -37,7 +38,6 @@ var _ = Describe("Snapshot functionality", func() {
 	var (
 		scheme            *runtime.Scheme
 		ns                *corev1.Namespace
-		kornInstance      *konflux.Korn
 		testClientBuilder *fake.ClientBuilder
 	)
 
@@ -47,29 +47,22 @@ var _ = Describe("Snapshot functionality", func() {
 		scheme = createFakeScheme()
 		ns = newNamespace(testutils.TestNamespace)
 
-		kornInstance = &konflux.Korn{
-			Namespace: testutils.TestNamespace,
-		}
 	})
 
 	Context("ListSnapshots functionality", func() {
 		DescribeTable("should handle various snapshot scenarios",
 			func(applicationName string, snapshots []runtime.Object, expectedCount int, expectError bool, description string) {
-				kornInstance.ApplicationName = applicationName
 				// Create a fresh client builder for each test to avoid state pollution
 				testClientBuilder = fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(ns).WithRuntimeObjects(snapshots...).WithIndex(&applicationapiv1alpha1.Snapshot{}, "metadata.name", testutils.FilterBySnapshotName)
-				kornInstance.KubeClient = testClientBuilder.Build()
-
-				if expectedCount > 0 {
-					logrus.Debugf("expectedCount: %d", expectedCount)
-					labels := client.MatchingLabels{"pac.test.appstudio.openshift.io/event-type": "push"}
-					list := applicationapiv1alpha1.SnapshotList{}
-					err := kornInstance.KubeClient.List(context.TODO(), &list, &client.ListOptions{Namespace: kornInstance.Namespace}, labels)
-					if err != nil {
-						logrus.Errorf("error listing snapshots: %v", err)
-					}
-					Expect(list.Items).To(HaveLen(expectedCount))
+				kornInstance := &konflux.Korn{
+					Namespace:       testutils.TestNamespace,
+					ApplicationName: applicationName,
+					KubeClient:      testClientBuilder.Build(),
+					ComponentName:   "",
 				}
+				logrus.Debugf("expectedCount: %d", expectedCount)
+				logrus.Debugf("component name: %s", kornInstance.ComponentName)
+
 				result, err := kornInstance.ListSnapshots()
 				if expectError {
 					Expect(err).To(HaveOccurred(), description)
@@ -100,15 +93,17 @@ var _ = Describe("Snapshot functionality", func() {
 	Context("GetSnapshot functionality", func() {
 		DescribeTable("should handle snapshot retrieval scenarios",
 			func(snapshots []runtime.Object, snapshotName, sha, applicationName string, expectError bool, expectedErrorSubstring string, description string) {
-				kornInstance.SnapshotName = snapshotName
-				kornInstance.SHA = sha
-				kornInstance.ApplicationName = applicationName
-				// Create a fresh client builder for each test to avoid state pollution
 				testClientBuilder = fake.NewClientBuilder().WithScheme(scheme).WithRuntimeObjects(ns).WithIndex(&applicationapiv1alpha1.Snapshot{}, "metadata.name", testutils.FilterBySnapshotName)
 				if len(snapshots) > 0 {
 					testClientBuilder = testClientBuilder.WithRuntimeObjects(snapshots...)
 				}
-				kornInstance.KubeClient = testClientBuilder.Build()
+				kornInstance := &konflux.Korn{
+					Namespace:       testutils.TestNamespace,
+					ApplicationName: applicationName,
+					SnapshotName:    snapshotName,
+					SHA:             sha,
+					KubeClient:      testClientBuilder.Build(),
+				}
 
 				result, err := kornInstance.GetSnapshot()
 

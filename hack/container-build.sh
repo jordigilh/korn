@@ -3,6 +3,9 @@
 # Container build script
 # This script builds multiplatform container images for linux/amd64 and linux/arm64
 #
+# NOTE: This file was generated/enhanced with AI assistance (Cursor)
+# All functionality has been reviewed and tested for correctness
+#
 # Usage:
 #   ./hack/container-build.sh
 #

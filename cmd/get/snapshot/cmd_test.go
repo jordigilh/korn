@@ -1,3 +1,6 @@
+// NOTE: This file contains AI-generated test cases and mock implementations (Cursor)
+// All test logic has been reviewed and validated for correctness
+
 package snapshot_test
 
 import (
