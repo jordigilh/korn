@@ -72,39 +72,37 @@ func GetCommand() *cli.Command {
 				Aliases:     []string{"c"},
 				Usage:       "Example: -candidate",
 				DefaultText: "Filters the snapshots that are suitable for the next release. The cutoff snapshot is the last used in a successful release",
+				Destination: &korn.Candidate,
 			},
 		},
 		Description: "Retrieves a snapshot or the list of components. If application or version is not provided, it will list all snapshots in the namespace",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			if len(korn.SnapshotName) != 0 || len(korn.SHA) > 0 {
+			switch {
+			case len(korn.SnapshotName) != 0 || len(korn.SHA) > 0:
 				s, err := korn.GetSnapshot()
 				if err != nil {
 					return err
 				}
 				print([]applicationapiv1alpha1.Snapshot{*s})
-				return nil
-			}
-			if len(korn.Version) > 0 {
-				s, err := korn.GetLatestSnapshotByVersion()
+			case len(korn.Version) > 0 && !korn.Candidate:
+				snapshots, err := korn.GetSnapshotsByVersion()
 				if err != nil {
 					return err
 				}
-				print([]applicationapiv1alpha1.Snapshot{*s})
-				return nil
-			}
-			if cmd.Bool("candidate") {
+				print(snapshots)
+			case korn.Candidate:
 				snapshot, err := korn.GetSnapshotCandidateForRelease()
 				if err != nil {
 					return err
 				}
 				print([]applicationapiv1alpha1.Snapshot{*snapshot})
-				return nil
+			default:
+				l, err := korn.ListSnapshots()
+				if err != nil {
+					return err
+				}
+				print(l)
 			}
-			l, err := korn.ListSnapshots()
-			if err != nil {
-				return err
-			}
-			print(l)
 			return nil
 		},
 	}

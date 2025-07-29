@@ -61,17 +61,18 @@ korn get component --app operator-1-0
 # 3. Review available release plans
 korn get releaseplan --app operator-1-0
 
-# 4. Get the latest valid snapshot candidate
-korn get snapshot --app operator-1-0 --candidate
+# 4. Get the latest valid snapshot candidate and capture its name
+SNAPSHOT=$(korn get snapshot --app operator-1-0 --candidate | tail -n 1 | awk '{print $1}')
+echo "Using snapshot: $SNAPSHOT"
 
-# 5. Create staging release
-korn create release --app operator-1-0 --environment staging
+# 5. Create staging release with captured snapshot
+STAGING_RELEASE=$(korn create release --app operator-1-0 --environment staging --snapshot $SNAPSHOT --wait=false | grep "Release created" | awk '{print $3}')
 
 # 6. Wait for staging release completion (optional)
-korn waitfor release <staging-release-name>
+korn waitfor release $STAGING_RELEASE
 
-# 7. After staging validation, promote to production
-korn create release --app operator-1-0 --environment production
+# 7. After staging validation, promote to production using same snapshot
+korn create release --app operator-1-0 --environment production --snapshot $SNAPSHOT
 ```
 
 ### Release with Specific Snapshot
@@ -333,11 +334,11 @@ rm bundle-labels.txt snapshot-components.txt
 # 1. Verify FBC application setup
 korn get application | grep fbc
 
-# 2. Check FBC snapshot
-korn get snapshot --app fbc-v4-15 --candidate
+# 2. Check FBC snapshot and capture its name
+SNAPSHOT=$(korn get snapshot --app fbc-v4-15 --candidate | tail -n 1 | awk '{print $1}')
 
 # 3. Create FBC release (no bundle validation)
-korn create release --app fbc-v4-15 --environment staging
+korn create release --app fbc-v4-15 --environment staging --snapshot $SNAPSHOT
 
 # 4. Manual catalog update (outside Korn)
 # Update catalog files and create PR for catalog updates
@@ -384,3 +385,30 @@ kubectl get releaseplans -l appstudio.openshift.io/application=operator-1-0 \
 # Verify active release plan admissions
 kubectl get releaseplans -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.status.releasePlanAdmission.active}{"\n"}{end}'
 ```
+
+## Advanced Snapshot Selection
+
+### Version-Specific Candidate Selection
+
+Use `--version` and `--candidate` together to find the best candidate from a specific version:
+
+```bash
+# Get all snapshots for a specific version (useful for debugging)
+korn get snapshot --app operator-1-0 --version v1.0.15
+
+# Get the best release candidate from a specific version
+korn get snapshot --app operator-1-0 --version v1.0.15 --candidate
+
+# Workflow: Release a specific version
+VERSION="v1.0.15"
+SNAPSHOT=$(korn get snapshot --app operator-1-0 --version $VERSION --candidate | tail -n 1 | awk '{print $1}')
+korn create release --app operator-1-0 --environment staging --snapshot $SNAPSHOT
+
+# Compare candidates across versions
+echo "Candidates for v1.0.15:"
+korn get snapshot --app operator-1-0 --version v1.0.15 --candidate
+echo "Candidates for v1.1.0:"
+korn get snapshot --app operator-1-0 --version v1.1.0 --candidate
+```
+
+> **Use Case**: This is particularly useful when you need to create a release from a specific version while ensuring you get the most suitable candidate snapshot that hasn't been used in previous releases.

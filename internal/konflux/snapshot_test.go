@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
+	"github.com/blang/semver/v4"
 	"github.com/containers/podman/v5/pkg/domain/entities/types"
 	"github.com/containers/podman/v5/pkg/inspect"
 	"github.com/jordigilh/korn/internal/konflux"
@@ -681,6 +683,258 @@ var _ = Describe("validateSnapshotCandidacy functionality", func() {
 		})
 	})
 
+	// Helper functions for version/candidate tests
+	setupVersionCandidateTest := func(kornInstance *konflux.Korn, mockGit *mockGitClientWithVersions) *fake.ClientBuilder {
+		// Create components
+		components := []runtime.Object{
+			testutils.NewBundleComponent(testutils.BundleComponentName, testutils.TestNamespace, testutils.TestAppName),
+			testutils.NewControllerComponent(testutils.ControllerComponentName, testutils.TestNamespace, testutils.TestAppName),
+		}
+
+		application := testutils.NewApplication("test-app", "test-namespace", map[string]string{"korn.redhat.io/application": "operator"})
+
+		builder := fakeClientBuilder.WithRuntimeObjects(append(components, application)...)
+		builder.WithIndex(&applicationapiv1alpha1.Snapshot{}, "metadata.name", filterBySnapshotName)
+		kornInstance.KubeClient = builder.Build()
+		kornInstance.PodClient = &mockImageClientValid{}
+		kornInstance.GitClient = mockGit
+
+		return builder
+	}
+
+	addGitSourceToSnapshot := func(snapshot *applicationapiv1alpha1.Snapshot, commitHash string) {
+		gitURL := "https://github.com/test/repo.git"
+		for i := range snapshot.Spec.Components {
+			snapshot.Spec.Components[i].Source = applicationapiv1alpha1.ComponentSource{
+				ComponentSourceUnion: applicationapiv1alpha1.ComponentSourceUnion{
+					GitSource: &applicationapiv1alpha1.GitSource{
+						URL:      gitURL,
+						Revision: commitHash,
+					},
+				},
+			}
+		}
+	}
+
+	createSnapshotWithGitSource := func(name, commitHash string, hoursAgo int) *applicationapiv1alpha1.Snapshot {
+		snapshot := newFinishedSnapshot(name, testutils.TestNamespace, testutils.TestAppName, testutils.BundleComponentName)
+		snapshot.ObjectMeta.CreationTimestamp = metav1.NewTime(metav1.Now().Add(time.Duration(-hoursAgo) * time.Hour))
+		addGitSourceToSnapshot(snapshot, commitHash)
+		return snapshot
+	}
+
+	Context("Version and Candidate combination", func() {
+		It("should filter by version first then apply candidate logic when both are provided", func() {
+			// Mock GitClient that returns specific versions for different snapshots
+			mockGitClient := &mockGitClientWithVersions{
+				versions: map[string]string{
+					"snapshot-v1-0-0-1": "1.0.0", // First snapshot with v1.0.0
+					"snapshot-v1-0-0-2": "1.0.0", // Second snapshot with v1.0.0 (newer, should be candidate)
+					"snapshot-v1-1-0":   "1.1.0", // Different version, should be filtered out
+				},
+			}
+
+			// Create snapshots using helper
+			snapshot1 := createSnapshotWithGitSource("snapshot-v1-0-0-1", "commit1", 72) // 3 days ago
+			snapshot2 := createSnapshotWithGitSource("snapshot-v1-0-0-2", "commit2", 24) // 1 day ago (newer)
+			snapshot3 := createSnapshotWithGitSource("snapshot-v1-1-0", "commit3", 48)   // 2 days ago
+
+			// Setup test environment
+			builder := setupVersionCandidateTest(kornInstance, mockGitClient)
+			builder.WithRuntimeObjects(snapshot1, snapshot2, snapshot3)
+			kornInstance.KubeClient = builder.Build()
+
+			// Set version to 1.0.0 - should filter to only snapshot1 and snapshot2
+			kornInstance.Version = "1.0.0"
+
+			// Test GetSnapshotCandidateForRelease - should return snapshot2 (newer of the two v1.0.0 snapshots)
+			result, err := kornInstance.GetSnapshotCandidateForRelease()
+
+			Expect(err).ToNot(HaveOccurred())
+			Expect(result).ToNot(BeNil())
+			// Should return the newer snapshot with version 1.0.0
+			Expect(result.Name).To(Equal("snapshot-v1-0-0-2"))
+		})
+
+		It("should return error when version is provided but no matching snapshots exist", func() {
+			// Mock GitClient that returns a version that doesn't match the requested one
+			mockGitClient := &mockGitClientWithVersions{
+				versions: map[string]string{
+					"snapshot-v1-0-0": "1.0.0",
+				},
+			}
+
+			// Create a snapshot with version 1.0.0
+			snapshot := createSnapshotWithGitSource("snapshot-v1-0-0", "commit1", 24) // 1 day ago
+
+			// Setup test environment
+			builder := setupVersionCandidateTest(kornInstance, mockGitClient)
+			builder.WithRuntimeObjects(snapshot)
+			kornInstance.KubeClient = builder.Build()
+
+			// Set version to 2.0.0 - no matching snapshots
+			kornInstance.Version = "2.0.0"
+
+			// Test GetSnapshotCandidateForRelease - should return error
+			result, err := kornInstance.GetSnapshotCandidateForRelease()
+
+			Expect(err).To(HaveOccurred())
+			Expect(result).To(BeNil())
+			Expect(err.Error()).To(ContainSubstring("no snapshot found"))
+			Expect(err.Error()).To(ContainSubstring("2.0.0"))
+		})
+
+		It("should skip snapshots already used in successful releases when version and candidate are both provided", func() {
+			// Mock GitClient that returns the same version for multiple snapshots
+			mockGitClient := &mockGitClientWithVersions{
+				versions: map[string]string{
+					"snapshot-v1-0-0-1": "1.0.0", // Oldest snapshot (5 days ago)
+					"snapshot-v1-0-0-2": "1.0.0", // Middle snapshot (3 days ago) - will be "used" in release
+					"snapshot-v1-0-0-3": "1.0.0", // Newer snapshot (1 day ago) - should be returned
+					"snapshot-v1-0-0-4": "1.0.0", // Newest snapshot (today) - also valid candidate
+				},
+			}
+
+			// Create multiple snapshots with the same version but different timestamps
+			snapshot1 := newFinishedSnapshot("snapshot-v1-0-0-1", testutils.TestNamespace, testutils.TestAppName, testutils.BundleComponentName)
+			snapshot1.ObjectMeta.CreationTimestamp = metav1.NewTime(metav1.Now().Add(-5 * 24 * time.Hour)) // 5 days ago
+
+			snapshot2 := newFinishedSnapshot("snapshot-v1-0-0-2", testutils.TestNamespace, testutils.TestAppName, testutils.BundleComponentName)
+			snapshot2.ObjectMeta.CreationTimestamp = metav1.NewTime(metav1.Now().Add(-3 * 24 * time.Hour)) // 3 days ago
+
+			snapshot3 := newFinishedSnapshot("snapshot-v1-0-0-3", testutils.TestNamespace, testutils.TestAppName, testutils.BundleComponentName)
+			snapshot3.ObjectMeta.CreationTimestamp = metav1.NewTime(metav1.Now().Add(-1 * 24 * time.Hour)) // 1 day ago
+
+			snapshot4 := newFinishedSnapshot("snapshot-v1-0-0-4", testutils.TestNamespace, testutils.TestAppName, testutils.BundleComponentName)
+			snapshot4.ObjectMeta.CreationTimestamp = metav1.NewTime(metav1.Now().Add(-2 * time.Hour)) // 2 hours ago (newest)
+
+			// Add git source info to all snapshots
+			gitURL := "https://github.com/test/repo.git"
+			for i, snapshot := range []*applicationapiv1alpha1.Snapshot{snapshot1, snapshot2, snapshot3, snapshot4} {
+				commitHash := fmt.Sprintf("commit%d", i+1)
+				for j := range snapshot.Spec.Components {
+					snapshot.Spec.Components[j].Source = applicationapiv1alpha1.ComponentSource{
+						ComponentSourceUnion: applicationapiv1alpha1.ComponentSourceUnion{
+							GitSource: &applicationapiv1alpha1.GitSource{
+								URL:      gitURL,
+								Revision: commitHash,
+							},
+						},
+					}
+				}
+			}
+
+			// Create a successful release that used snapshot2 (the middle one)
+			successfulRelease := testutils.NewSuccessfulRelease(
+				"release-v1-0-0",
+				testutils.TestNamespace,
+				"snapshot-v1-0-0-2", // References snapshot2
+				"test-release-plan",
+				testutils.TestAppName,
+				testutils.BundleComponentName,
+			)
+			// Make sure the release is recent (1 day ago) so it's the "latest" successful release
+			successfulRelease.ObjectMeta.CreationTimestamp = metav1.NewTime(metav1.Now().Add(-1 * 24 * time.Hour))
+
+			// Create components
+			components := []runtime.Object{
+				testutils.NewBundleComponent(testutils.BundleComponentName, testutils.TestNamespace, testutils.TestAppName),
+				testutils.NewControllerComponent(testutils.ControllerComponentName, testutils.TestNamespace, testutils.TestAppName),
+			}
+
+			application := testutils.NewApplication("test-app", "test-namespace", map[string]string{"korn.redhat.io/application": "operator"})
+
+			// Add all objects to the fake client
+			allObjects := append(components, snapshot1, snapshot2, snapshot3, snapshot4, successfulRelease, application)
+			fakeClientBuilder = fakeClientBuilder.WithRuntimeObjects(allObjects...).WithIndex(&applicationapiv1alpha1.Snapshot{}, "metadata.name", filterBySnapshotName)
+			kornInstance.KubeClient = fakeClientBuilder.Build()
+			kornInstance.PodClient = &mockImageClientValid{}
+			kornInstance.GitClient = mockGitClient
+
+			// Set version to 1.0.0 - should filter to all 4 snapshots
+			kornInstance.Version = "1.0.0"
+
+			// Test GetSnapshotCandidateForRelease
+			// Should return snapshot3 or snapshot4 (first valid one newer than snapshot2)
+			result, err := kornInstance.GetSnapshotCandidateForRelease()
+
+			Expect(err).ToNot(HaveOccurred())
+			Expect(result).ToNot(BeNil())
+			// Should return snapshot3 (first valid candidate after the cutoff)
+			// Note: The list is sorted newest first, so it will check snapshot4, then snapshot3, then stop at snapshot2
+			Expect(result.Name).To(Equal("snapshot-v1-0-0-4"))
+		})
+
+		It("should return error when version is provided and all matching snapshots were already used in releases", func() {
+			// Mock GitClient that returns the same version for multiple snapshots
+			mockGitClient := &mockGitClientWithVersions{
+				versions: map[string]string{
+					"snapshot-v1-0-0-1": "1.0.0", // Older snapshot
+					"snapshot-v1-0-0-2": "1.0.0", // Newer snapshot (will be "used" in release)
+				},
+			}
+
+			// Create snapshots with the same version
+			snapshot1 := newFinishedSnapshot("snapshot-v1-0-0-1", testutils.TestNamespace, testutils.TestAppName, testutils.BundleComponentName)
+			snapshot1.ObjectMeta.CreationTimestamp = metav1.NewTime(metav1.Now().Add(-3 * 24 * time.Hour)) // 3 days ago
+
+			snapshot2 := newFinishedSnapshot("snapshot-v1-0-0-2", testutils.TestNamespace, testutils.TestAppName, testutils.BundleComponentName)
+			snapshot2.ObjectMeta.CreationTimestamp = metav1.NewTime(metav1.Now().Add(-1 * 24 * time.Hour)) // 1 day ago (newer)
+
+			// Add git source info
+			gitURL := "https://github.com/test/repo.git"
+			for i, snapshot := range []*applicationapiv1alpha1.Snapshot{snapshot1, snapshot2} {
+				commitHash := fmt.Sprintf("commit%d", i+1)
+				for j := range snapshot.Spec.Components {
+					snapshot.Spec.Components[j].Source = applicationapiv1alpha1.ComponentSource{
+						ComponentSourceUnion: applicationapiv1alpha1.ComponentSourceUnion{
+							GitSource: &applicationapiv1alpha1.GitSource{
+								URL:      gitURL,
+								Revision: commitHash,
+							},
+						},
+					}
+				}
+			}
+
+			// Create a successful release that used the newer snapshot (snapshot2)
+			successfulRelease := testutils.NewSuccessfulRelease(
+				"release-v1-0-0",
+				testutils.TestNamespace,
+				"snapshot-v1-0-0-2", // References the newer snapshot
+				"test-release-plan",
+				testutils.TestAppName,
+				testutils.BundleComponentName,
+			)
+
+			// Create components
+			components := []runtime.Object{
+				testutils.NewBundleComponent(testutils.BundleComponentName, testutils.TestNamespace, testutils.TestAppName),
+				testutils.NewControllerComponent(testutils.ControllerComponentName, testutils.TestNamespace, testutils.TestAppName),
+			}
+
+			application := testutils.NewApplication("test-app", "test-namespace", map[string]string{"korn.redhat.io/application": "operator"})
+
+			// Add all objects to the fake client
+			allObjects := append(components, snapshot1, snapshot2, successfulRelease, application)
+			fakeClientBuilder = fakeClientBuilder.WithRuntimeObjects(allObjects...).WithIndex(&applicationapiv1alpha1.Snapshot{}, "metadata.name", filterBySnapshotName)
+			kornInstance.KubeClient = fakeClientBuilder.Build()
+			kornInstance.PodClient = &mockImageClientValid{}
+			kornInstance.GitClient = mockGitClient
+
+			// Set version to 1.0.0
+			kornInstance.Version = "1.0.0"
+
+			// Test GetSnapshotCandidateForRelease
+			// Should return error because all version-matching snapshots are older than the last used snapshot
+			result, err := kornInstance.GetSnapshotCandidateForRelease()
+
+			Expect(err).To(HaveOccurred())
+			Expect(result).To(BeNil())
+			Expect(err.Error()).To(ContainSubstring("no new valid snapshot candidates found"))
+		})
+	})
+
 	Context("Edge cases", func() {
 		It("should return true when only bundle component exists (empty component list)", func() {
 			// Create a valid snapshot
@@ -692,7 +946,7 @@ var _ = Describe("validateSnapshotCandidacy functionality", func() {
 			}
 
 			application := testutils.NewApplication("test-app", "test-namespace", map[string]string{"korn.redhat.io/application": "operator"})
-			fakeClientBuilder = fakeClientBuilder.WithRuntimeObjects(append(components, snapshot, application)...)
+			fakeClientBuilder = fakeClientBuilder.WithRuntimeObjects(append(components, snapshot, application)...).WithIndex(&applicationapiv1alpha1.Snapshot{}, "metadata.name", filterBySnapshotName)
 			kornInstance.KubeClient = fakeClientBuilder.Build()
 			kornInstance.PodClient = &mockImageClientValid{}
 
@@ -738,3 +992,49 @@ var _ = Describe("validateSnapshotCandidacy functionality", func() {
 		})
 	})
 })
+
+// Mock git client with configurable versions for different snapshots
+type mockGitClientWithVersions struct {
+	versions map[string]string
+}
+
+func (m *mockGitClientWithVersions) GetVersion(repoURL, commitHash string) (*semver.Version, error) {
+	// Use commit hash as key to map to different versions
+	versionStr := "1.0.0" // default
+	for key, version := range m.versions {
+		if strings.Contains(commitHash, key) || strings.Contains(commitHash, strings.Replace(key, "snapshot-", "commit", 1)) {
+			versionStr = version
+			break
+		}
+	}
+
+	// Map commit hashes to versions for easier testing
+	switch commitHash {
+	case "commit1":
+		if val, ok := m.versions["snapshot-v1-0-0-1"]; ok {
+			versionStr = val
+		}
+	case "commit2":
+		if val, ok := m.versions["snapshot-v1-0-0-2"]; ok {
+			versionStr = val
+		}
+	case "commit3":
+		if val, ok := m.versions["snapshot-v1-1-0"]; ok {
+			versionStr = val
+		}
+	case "commit4":
+		if val, ok := m.versions["snapshot-v1-0-0-4"]; ok {
+			versionStr = val
+		}
+	}
+
+	version, err := semver.ParseTolerant(versionStr)
+	if err != nil {
+		return nil, err
+	}
+	return &version, nil
+}
+
+func (m *mockGitClientWithVersions) Cleanup() {
+	// No cleanup needed for mock
+}

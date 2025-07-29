@@ -80,8 +80,8 @@ korn get application
 korn get component --app operator-1-0
 
 # Release workflow
-korn get snapshot --app operator-1-0 --candidate
-korn create release --app operator-1-0 --environment staging
+SNAPSHOT=$(korn get snapshot --app operator-1-0 --candidate | tail -n 1 | awk '{print $1}')
+korn create release --app operator-1-0 --environment staging --snapshot $SNAPSHOT
 
 # Debugging
 korn get snapshot --app operator-1-0
