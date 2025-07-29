@@ -24,30 +24,9 @@ import (
 func (k Korn) ListReleases() ([]releaseapiv1alpha1.Release, error) {
 	labels := client.MatchingLabels{}
 	if len(k.ApplicationName) > 0 {
-		appType, err := k.GetApplicationType()
+		comp, err := k.getComponentForRelease()
 		if err != nil {
 			return nil, err
-		}
-		var comp *applicationapiv1alpha1.Component
-		switch appType {
-		case "operator":
-			comp, err = k.GetBundleComponentForVersion()
-			if err != nil {
-				return nil, err
-			}
-		case "fbc":
-			// Get the first and only component
-			comps, err := k.ListComponents()
-			if err != nil {
-				return nil, err
-			}
-			if len(comps) == 0 {
-				return nil, fmt.Errorf("application %s/%s does not have any component associated", k.Namespace, k.ApplicationName)
-			}
-			if len(comps) > 1 {
-				return nil, fmt.Errorf("application %s/%s of type FBC can only have 1 component per Konflux recommendation ", k.Namespace, k.ApplicationName)
-			}
-			comp = &comps[0]
 		}
 		labels["appstudio.openshift.io/application"] = k.ApplicationName
 		labels["appstudio.openshift.io/component"] = comp.Name

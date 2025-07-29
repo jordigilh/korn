@@ -23,30 +23,9 @@ func (k Korn) ListSnapshots() ([]applicationapiv1alpha1.Snapshot, error) {
 	list := applicationapiv1alpha1.SnapshotList{}
 	labels := matchingLabelsPushEventType
 	if len(k.ApplicationName) > 0 {
-		appType, err := k.GetApplicationType()
+		comp, err := k.getComponentForRelease()
 		if err != nil {
 			return nil, err
-		}
-		var comp *applicationapiv1alpha1.Component
-		switch appType {
-		case "operator":
-			comp, err = k.GetBundleComponentForVersion()
-			if err != nil {
-				return nil, err
-			}
-		case "fbc":
-			// Get the first and only component
-			comps, err := k.ListComponents()
-			if err != nil {
-				return nil, err
-			}
-			if len(comps) == 0 {
-				return nil, fmt.Errorf("application %s/%s does not have any component associated", k.Namespace, k.ApplicationName)
-			}
-			if len(comps) > 1 {
-				return nil, fmt.Errorf("application %s/%s of type FBC can only have 1 component per Konflux recommendation ", k.Namespace, k.ApplicationName)
-			}
-			comp = &comps[0]
 		}
 		labels["appstudio.openshift.io/component"] = comp.Name
 	}
@@ -115,6 +94,38 @@ func (k Korn) getVersionForSnapshot(snapshot applicationapiv1alpha1.Snapshot) (*
 	return version, true, nil
 }
 
+// getComponentForRelease returns the component to use for the release.
+// If the application is of "operator" type, the bundle component type is returned
+// For FBC based applications, which are expected only to contain one component, the default component is returned
+func (k Korn) getComponentForRelease() (*applicationapiv1alpha1.Component, error) {
+	appType, err := k.GetApplicationType()
+	if err != nil {
+		return nil, err
+	}
+	var comp *applicationapiv1alpha1.Component
+	switch appType {
+	case "operator":
+		comp, err = k.GetBundleComponentForVersion()
+		if err != nil {
+			return nil, err
+		}
+	case "fbc":
+		// Get the first and only component
+		comps, err := k.ListComponents()
+		if err != nil {
+			return nil, err
+		}
+		if len(comps) == 0 {
+			return nil, fmt.Errorf("application %s/%s does not have any component associated", k.Namespace, k.ApplicationName)
+		}
+		if len(comps) > 1 {
+			return nil, fmt.Errorf("application %s/%s of type FBC can only have 1 component per Konflux recommendation ", k.Namespace, k.ApplicationName)
+		}
+		comp = &comps[0]
+	}
+	return comp, nil
+}
+
 func (k Korn) GetSnapshotCandidateForRelease() (*applicationapiv1alpha1.Snapshot, error) {
 	if len(k.SnapshotName) > 0 || len(k.SHA) > 0 {
 		return k.GetSnapshot()
@@ -146,30 +157,9 @@ func (k Korn) GetSnapshotCandidateForRelease() (*applicationapiv1alpha1.Snapshot
 			return nil, err
 		}
 	}
-	appType, err := k.GetApplicationType()
+	comp, err := k.getComponentForRelease()
 	if err != nil {
 		return nil, err
-	}
-	var comp *applicationapiv1alpha1.Component
-	switch appType {
-	case "operator":
-		comp, err = k.GetBundleComponentForVersion()
-		if err != nil {
-			return nil, err
-		}
-	case "fbc":
-		// Get the first and only component
-		comps, err := k.ListComponents()
-		if err != nil {
-			return nil, err
-		}
-		if len(comps) == 0 {
-			return nil, fmt.Errorf("application %s/%s does not have any component associated", k.Namespace, k.ApplicationName)
-		}
-		if len(comps) > 1 {
-			return nil, fmt.Errorf("application %s/%s of type FBC can only have 1 component per Konflux recommendation ", k.Namespace, k.ApplicationName)
-		}
-		comp = &comps[0]
 	}
 	for _, v := range list {
 		if lastSnapshot != nil && v.Name == lastSnapshot.Name {

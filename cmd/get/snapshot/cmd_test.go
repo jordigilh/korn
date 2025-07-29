@@ -534,7 +534,7 @@ var _ = Describe("Get Snapshot Command", func() {
 			}
 			Expect(found).To(BeTrue())
 		},
-			Entry("applicaiton flag", "application", "app"),
+			Entry("application flag", "application", "app"),
 			Entry("candidate flag", "candidate", "c"),
 		)
 	})
