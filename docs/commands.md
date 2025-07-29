@@ -11,10 +11,13 @@ korn [GLOBAL FLAGS] <command> <subcommand> [FLAGS] [ARGUMENTS]
 
 ## Global Flags
 
-| Flag | Description | Example |
-|------|-------------|---------|
-| `--namespace` | Override current namespace | `--namespace my-operator-namespace` |
-| `--help` | Show help for any command | `korn --help` |
+| Flag | Alias | Description | Example |
+|------|-------|-------------|---------|
+| `--namespace` | `-n` | Override current namespace | `--namespace my-operator-namespace` |
+| `--kubeconfig` | - | Path to kubeconfig file | `--kubeconfig ~/.kube/config` |
+| `--debug` | `-d` | Enable debug mode | `--debug` |
+| `--version` | `-v` | Print version information | `--version` |
+| `--help` | - | Show help for any command | `--help` |
 
 ## Namespace Handling
 
@@ -26,6 +29,10 @@ korn get application
 
 # Override to specific namespace
 korn get application --namespace my-operator-namespace
+korn get application -n my-operator-namespace
+
+# Use custom kubeconfig file
+korn get application --kubeconfig ~/.kube/my-cluster-config
 
 # Set namespace for all commands in session
 kubectl config set-context --current --namespace=my-operator-namespace
@@ -42,6 +49,8 @@ List all applications with their types.
 ```bash
 korn get application [FLAGS]
 ```
+
+**Aliases:** `app`, `apps`, `applications`
 
 **Examples:**
 ```bash
@@ -66,6 +75,8 @@ List components for an application.
 ```bash
 korn get component [COMPONENT_NAME] [FLAGS]
 ```
+
+**Aliases:** `comp`, `comps`, `components`
 
 **Flags:**
 | Flag | Alias | Description | Example |
@@ -92,13 +103,15 @@ Get snapshots for validation and inspection.
 korn get snapshot [SNAPSHOT_NAME] [FLAGS]
 ```
 
+**Aliases:** `snapshots`
+
 **Flags:**
 | Flag | Alias | Description | Example |
 |------|-------|-------------|---------|
 | `--application` | `--app` | Filter by application name | `--app operator-1-0` |
 | `--sha` | - | Get snapshot by commit SHA | `--sha abc123...` |
-| `--version` | - | Get snapshot by version | `--version v1.0.15` |
-| `--candidate` | `-c` | Get latest valid candidate | `--candidate` |
+| `--version` | - | Get all snapshots matching version | `--version v1.0.15` |
+| `--candidate` | `-c` | Get latest valid candidate (can combine with `--version`) | `--candidate` or `--version v1.0.15 --candidate` |
 
 **Examples:**
 ```bash
@@ -111,11 +124,16 @@ korn get snapshot --app operator-1-0
 # Get latest release candidate
 korn get snapshot --app operator-1-0 --candidate
 
-# Get snapshot by version
+# Get all snapshots matching specific version
 korn get snapshot --app operator-1-0 --version v1.0.15
+
+# Get candidate snapshot from specific version
+korn get snapshot --app operator-1-0 --version v1.0.15 --candidate
 ```
 
-> **Note:** The `--version` and `--candidate` flags cannot be used together. If both are specified, `--version` takes precedence.
+> **Note:** When `--version` is used alone, it returns **all** snapshots matching that version. When combined with `--candidate`, it returns a **single** candidate snapshot from the version-filtered results.
+>
+> **Important:** Don't confuse this `--version` flag (which gets all snapshots matching a specific version) with the global `--version` flag (which prints the korn application version). Use `korn --version` to check the tool version, and `korn get snapshot --version v1.0.15` to get all snapshots for that version.
 
 ### get release
 
@@ -124,6 +142,8 @@ List releases for an application.
 ```bash
 korn get release [RELEASE_NAME] [FLAGS]
 ```
+
+**Aliases:** `releases`
 
 **Flags:**
 | Flag | Alias | Description | Example |
@@ -196,16 +216,16 @@ korn create release [FLAGS]
 **Examples:**
 ```bash
 # Simple staging release
-korn create release --app operator-1-0 --environment staging
+korn create release --app operator-1-0 --environment staging --snapshot snapshot-sample-xyz123
 
 # Production release with release notes
-korn create release --app operator-1-0 --environment production --releaseNotes release-notes.yaml
+korn create release --app operator-1-0 --environment production --snapshot snapshot-sample-xyz123 --releaseNotes release-notes.yaml
 
 # Force release (retry failed release)
-korn create release --app operator-1-0 --environment staging --force
+korn create release --app operator-1-0 --environment staging --snapshot snapshot-sample-xyz123 --force
 
 # Dry run to see manifest
-korn create release --app operator-1-0 --environment staging --dryrun --output yaml
+korn create release --app operator-1-0 --environment staging --snapshot snapshot-sample-xyz123 --dryrun --output yaml
 ```
 
 ## Wait Commands
@@ -245,11 +265,12 @@ korn get component --app operator-1-0
 # 3. Check release plans
 korn get releaseplan --app operator-1-0
 
-# 4. Get latest candidate snapshot
-korn get snapshot --app operator-1-0 --candidate
+# 4. Get latest candidate snapshot and capture its name
+SNAPSHOT=$(korn get snapshot --app operator-1-0 --candidate | tail -n 1 | awk '{print $1}')
+echo "Using snapshot: $SNAPSHOT"
 
-# 5. Create release
-korn create release --app operator-1-0 --environment staging
+# 5. Create release with captured snapshot
+korn create release --app operator-1-0 --environment staging --snapshot $SNAPSHOT
 ```
 
 ### Release Workflow

@@ -25,6 +25,7 @@ type Korn struct {
 	PodClient       internal.ImageClient
 	GitClient       internal.GitCommitVersioner
 	DynamicClient   dynamic.Interface
+	Candidate       bool
 }
 
 type ReleaseNote struct {

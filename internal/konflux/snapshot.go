@@ -64,11 +64,12 @@ func (k Korn) ListSnapshots() ([]applicationapiv1alpha1.Snapshot, error) {
 	return list.Items, nil
 }
 
-func (k Korn) GetLatestSnapshotByVersion() (*applicationapiv1alpha1.Snapshot, error) {
+func (k Korn) GetSnapshotsByVersion() ([]applicationapiv1alpha1.Snapshot, error) {
 	l, err := k.ListSnapshots()
 	if err != nil {
 		return nil, err
 	}
+	var snapshots []applicationapiv1alpha1.Snapshot
 	semVer, err := semver.ParseTolerant(k.Version)
 	if err != nil {
 		return nil, err
@@ -84,10 +85,13 @@ func (k Korn) GetLatestSnapshotByVersion() (*applicationapiv1alpha1.Snapshot, er
 			continue
 		}
 		if semVer.Equals(*v) {
-			return &s, nil
+			snapshots = append(snapshots, s)
 		}
 	}
-	return nil, fmt.Errorf("no snapshot found for application %s/%s with version %s", k.Namespace, k.ApplicationName, k.Version)
+	if len(snapshots) == 0 {
+		return nil, fmt.Errorf("no snapshot found for application %s/%s with version %s", k.Namespace, k.ApplicationName, k.Version)
+	}
+	return snapshots, nil
 }
 
 func (k Korn) getVersionForSnapshot(snapshot applicationapiv1alpha1.Snapshot) (*semver.Version, bool, error) {
@@ -128,9 +132,19 @@ func (k Korn) GetSnapshotCandidateForRelease() (*applicationapiv1alpha1.Snapshot
 			return nil, err
 		}
 	}
-	list, err := k.ListSnapshots()
-	if err != nil {
-		return nil, err
+	var list []applicationapiv1alpha1.Snapshot
+	// If a version is provided, we will filter the snapshots by version
+	if len(k.Version) > 0 {
+		list, err = k.GetSnapshotsByVersion()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		// Otherwise, we will list all snapshots
+		list, err = k.ListSnapshots()
+		if err != nil {
+			return nil, err
+		}
 	}
 	appType, err := k.GetApplicationType()
 	if err != nil {

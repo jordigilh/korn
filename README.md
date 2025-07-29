@@ -54,7 +54,11 @@ cp output/korn /usr/local/bin/
 
 3. **Create a release**:
    ```bash
-   korn create release --app operator-1-0 --environment staging
+   # Get latest candidate snapshot
+   SNAPSHOT=$(korn get snapshot --app operator-1-0 --candidate | tail -n 1 | awk '{print $1}')
+
+   # Create release with snapshot
+   korn create release --app operator-1-0 --environment staging --snapshot $SNAPSHOT
    ```
 
 ## Essential Commands
@@ -63,7 +67,7 @@ cp output/korn /usr/local/bin/
 |---------|---------|---------|
 | `get application` | List applications with types | `korn get application` |
 | `get snapshot --candidate` | Get latest valid snapshot | `korn get snapshot --app operator-1-0 --candidate` |
-| `create release` | Create new release | `korn create release --app operator-1-0 --environment staging` |
+| `create release` | Create new release | `korn create release --app operator-1-0 --environment staging --snapshot <snapshot-name>` |
 | `waitfor release` | Wait for completion | `korn waitfor release <release-name>` |
 
 For complete command reference, see [Commands Documentation](docs/commands.md).
@@ -97,14 +101,15 @@ korn get application --namespace my-operator-namespace
 korn get application
 korn get component --app operator-1-0
 
-# 2. Check latest candidate
-korn get snapshot --app operator-1-0 --candidate
+# 2. Check latest candidate and capture snapshot name
+SNAPSHOT=$(korn get snapshot --app operator-1-0 --candidate | tail -n 1 | awk '{print $1}')
+echo "Using snapshot: $SNAPSHOT"
 
-# 3. Create staging release
-korn create release --app operator-1-0 --environment staging
+# 3. Create staging release with captured snapshot
+korn create release --app operator-1-0 --environment staging --snapshot $SNAPSHOT
 
-# 4. Promote to production
-korn create release --app operator-1-0 --environment production
+# 4. Promote to production using same snapshot
+korn create release --app operator-1-0 --environment production --snapshot $SNAPSHOT
 ```
 
 ## Getting Help
