@@ -46,7 +46,7 @@ endif
 
 GINKGO = $(GOBIN)/ginkgo
 
-.PHONY: help clean controller-gen build build-ci linux-amd64 linux-arm64 darwin-arm64 test test-ci fmt vet vet-ci lint ginkgo envtest deps container-build container-push container-clean
+.PHONY: help clean controller-gen build build-ci linux-amd64 linux-arm64 darwin-arm64 test test-ci fmt vet vet-ci lint cyclo-check ginkgo envtest deps container-build container-push container-clean
 
 help: ## Display this help message
 	@echo "Available targets:"
@@ -75,6 +75,7 @@ help: ## Display this help message
 	@echo "  make container-push          - Push multiplatform container images to registry"
 	@echo "  make container-clean         - Clean multiplatform container images"
 	@echo "  make lint                    - Run linting checks"
+	@echo "  make cyclo-check             - Check cyclomatic complexity (threshold: 15)"
 	@echo "  make clean                   - Remove build artifacts"
 
 clean: ## Remove build artifacts
@@ -142,6 +143,19 @@ golangci-lint: ## Install golangci-lint locally if necessary
 	curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(shell dirname $(GOLANGCI_LINT)) $(GOLANGCI_LINT_VERSION) ;\
 	}
 
+GOCYCLO = $(LOCALBIN)/gocyclo
+gocyclo: ## Install gocyclo locally if necessary
+	@test -s $(GOCYCLO) || GOBIN=$(LOCALBIN) go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
+
+.PHONY: cyclo-check
+cyclo-check: gocyclo ## Check cyclomatic complexity of functions (threshold: 15)
+	@echo "Checking cyclomatic complexity (threshold: 15)..."
+	@$(GOCYCLO) -over 15 . || { \
+		echo "❌ Found functions with cyclomatic complexity over 15"; \
+		echo "Consider refactoring complex functions to improve maintainability"; \
+		exit 1; \
+	}
+	@echo "✅ All functions have acceptable cyclomatic complexity (≤15)"
 
 .PHONY: lint
 lint: fmt vet golangci-lint ## Run golangci-lint linter & yamllint
