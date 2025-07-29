@@ -1,3 +1,6 @@
+// NOTE: This file contains AI-generated/enhanced test helper functions (Cursor)
+// All helper logic has been reviewed and validated for correctness
+
 package testutils
 
 import (

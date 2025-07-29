@@ -3,6 +3,9 @@
 # CI build runner script
 # This script builds the korn binary using containers for consistent builds
 #
+# NOTE: This file was generated/enhanced with AI assistance (Cursor)
+# All functionality has been reviewed and tested for correctness
+#
 # Usage:
 #   ./hack/build-ci.sh
 #

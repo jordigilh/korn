@@ -3,6 +3,9 @@
 # Container test runner script
 # This script runs tests inside a container environment with proper setup
 #
+# NOTE: This file was generated/enhanced with AI assistance (Cursor)
+# All functionality has been reviewed and tested for correctness
+#
 # Usage:
 #   ./hack/run-test.sh                              # Run with default values (verbose output enabled)
 #   GINKGO_VERBOSE=false ./hack/run-test.sh         # Run with quiet output

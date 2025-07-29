@@ -3,6 +3,9 @@
 # CI test runner script
 # This script runs tests in container environment for CI
 #
+# NOTE: This file was generated/enhanced with AI assistance (Cursor)
+# All functionality has been reviewed and tested for correctness
+#
 # Usage:
 #   ./hack/test-ci.sh
 #

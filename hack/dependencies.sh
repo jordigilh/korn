@@ -3,6 +3,9 @@
 # Dependencies installer script
 # This script installs build dependencies on Linux systems (Fedora/RHEL/Debian/Ubuntu)
 #
+# NOTE: This file was generated/enhanced with AI assistance (Cursor)
+# All functionality has been reviewed and tested for correctness
+#
 # Usage:
 #   ./hack/dependencies.sh                          # Install dependencies automatically
 #

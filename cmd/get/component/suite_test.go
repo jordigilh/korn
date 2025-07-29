@@ -1,3 +1,6 @@
+// NOTE: This file contains AI-generated test setup and patterns (Cursor)
+// All test logic has been reviewed and validated for correctness
+
 package component_test
 
 import (

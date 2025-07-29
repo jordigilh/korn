@@ -104,3 +104,14 @@ When updating documentation:
 5. **Update this index**: Keep navigation current
 
 See [contributing.md](contributing.md) for detailed guidelines.
+
+## AI-Generated Documentation Notice
+
+**Important for contributors**: Significant portions of this documentation have been generated or enhanced using AI tools (Cursor). This includes:
+
+- Command examples and usage patterns
+- Workflow documentation and best practices
+- Code snippets and configuration examples
+- Cross-references and organizational structure
+
+All AI-generated content has been reviewed for accuracy and tested for functionality. When contributing to documentation, please ensure any AI-assisted content is validated against the actual codebase behavior.

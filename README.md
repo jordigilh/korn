@@ -151,6 +151,16 @@ See the [Onboarding Guide](docs/onboarding.md) for detailed setup instructions.
 - **Issues**: Report bugs and request features on [GitHub Issues](https://github.com/jordigilh/korn/issues)
 - **Examples**: See [examples and workflows](docs/examples.md) for common use cases
 
+## AI-Generated Content Disclosure
+
+Parts of this project's codebase and documentation have been generated or enhanced using AI tools, including:
+
+- **Unit Tests**: Some test files and test cases were completely or partially generated using Cursor's AI capabilities
+- **Documentation**: Portions of the documentation, examples, and code comments were created or improved with AI assistance
+- **Code Refactoring**: Some code improvements and refactoring were implemented with AI guidance
+
+While AI tools have been used to accelerate development and improve code quality, all generated content has been reviewed, tested, and validated to ensure it meets the project's standards and requirements.
+
 ## License
 
 This project is licensed under the [LICENSE](LICENSE) file in the repository.
