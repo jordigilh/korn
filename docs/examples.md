@@ -240,6 +240,10 @@ echo "Release pipeline completed successfully!"
 
 ### Version-Based Release Workflow
 
+Release a specific version by finding snapshots that match the version tag.
+
+> **Required:** Your git repository must have a `VERSION.txt` file in the root containing the version (e.g., `1.0.15`).
+
 ```bash
 #!/bin/bash
 # version-release.sh
@@ -390,7 +394,14 @@ kubectl get releaseplans -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.s
 
 ### Version-Specific Candidate Selection
 
-Use `--version` and `--candidate` together to find the best candidate from a specific version:
+Use `--version` and `--candidate` together to find the best candidate from a specific version.
+
+> **Prerequisites:** Your git repository must have a `VERSION.txt` file in the root directory containing a valid semantic version (e.g., `1.0.15`) for each commit that you want to be discoverable by version filtering.
+
+**Example VERSION.txt file:**
+```
+1.0.15
+```
 
 ```bash
 # Get all snapshots for a specific version (useful for debugging)

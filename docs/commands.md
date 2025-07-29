@@ -110,7 +110,7 @@ korn get snapshot [SNAPSHOT_NAME] [FLAGS]
 |------|-------|-------------|---------|
 | `--application` | `--app` | Filter by application name | `--app operator-1-0` |
 | `--sha` | - | Get snapshot by commit SHA | `--sha abc123...` |
-| `--version` | - | Get all snapshots matching version | `--version v1.0.15` |
+| `--version` | - | Get all snapshots matching version (requires VERSION.txt in repo root) | `--version v1.0.15` |
 | `--candidate` | `-c` | Get latest valid candidate (can combine with `--version`) | `--candidate` or `--version v1.0.15 --candidate` |
 
 **Examples:**
@@ -132,6 +132,8 @@ korn get snapshot --app operator-1-0 --version v1.0.15 --candidate
 ```
 
 > **Note:** When `--version` is used alone, it returns **all** snapshots matching that version. When combined with `--candidate`, it returns a **single** candidate snapshot from the version-filtered results.
+>
+> **VERSION.txt Requirement:** The `--version` flag works by reading a `VERSION.txt` file from the root directory of your git repository at each snapshot's commit. This file must contain a valid semantic version (e.g., `1.0.15`). Snapshots from commits without this file or with invalid version formats will be excluded from version-based filtering.
 >
 > **Important:** Don't confuse this `--version` flag (which gets all snapshots matching a specific version) with the global `--version` flag (which prints the korn application version). Use `korn --version` to check the tool version, and `korn get snapshot --version v1.0.15` to get all snapshots for that version.
 
