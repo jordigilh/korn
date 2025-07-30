@@ -1,14 +1,18 @@
+---
 name: Release
 
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 jobs:
   build:
     name: Build and Release
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
 
     steps:
       - name: Checkout code
@@ -27,21 +31,25 @@ jobs:
 
       - name: Build binary
         env:
-          CGO_ENABLED: 0
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          make linux-amd64
+          make linux-${{ matrix.arch }}
           mkdir -p dist
 
       - name: Prepare release binary
         run: |
           # Find the built binary and copy it for release
-          BINARY_FILE=$(find output -name "korn_*" | head -1)
+          VERSION="${{ steps.version.outputs.version }}"
+          PATTERN="korn_${VERSION}_linux_${{ matrix.arch }}"
+          BINARY_FILE=$(find output -name "$PATTERN" | head -1)
           if [ -n "$BINARY_FILE" ]; then
-            cp "$BINARY_FILE" "dist/korn-${{ steps.version.outputs.version }}"
-            ls -lh "dist/korn-${{ steps.version.outputs.version }}"
+            cp "$BINARY_FILE" \
+              "dist/korn-${VERSION}-linux-${{ matrix.arch }}"
+            ls -lh "dist/korn-${VERSION}-linux-${{ matrix.arch }}"
+            echo "✅ Binary prepared: $BINARY_FILE"
           else
-            echo "Error: Binary file not found"
+            echo "❌ Error: Binary file not found for pattern: $PATTERN"
+            echo "Available files in output/:"
             ls -la output/
             exit 1
           fi
@@ -49,7 +57,7 @@ jobs:
       - name: Upload release binary
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/korn-${{ steps.version.outputs.version }}
+          files: >
+            dist/korn-${{ steps.version.outputs.version }}-linux-${{ matrix.arch }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
