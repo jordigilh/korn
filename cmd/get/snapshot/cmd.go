@@ -84,12 +84,6 @@ func GetCommand() *cli.Command {
 					return err
 				}
 				print([]applicationapiv1alpha1.Snapshot{*s})
-			case len(korn.Version) > 0 && !korn.Candidate:
-				snapshots, err := korn.GetSnapshotsByVersion()
-				if err != nil {
-					return err
-				}
-				print(snapshots)
 			case korn.Candidate:
 				snapshot, err := korn.GetSnapshotCandidateForRelease()
 				if err != nil {

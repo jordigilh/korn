@@ -20,33 +20,21 @@ var (
 )
 
 func (k Korn) ListSnapshots() ([]applicationapiv1alpha1.Snapshot, error) {
+	// If a version is provided, we will filter the snapshots by version
+	if len(k.Version) > 0 {
+		return k.GetSnapshotsByVersion()
+	}
+	// Otherwise, we will list all snapshots
+	return k.listSnapshots()
+}
+
+func (k Korn) listSnapshots() ([]applicationapiv1alpha1.Snapshot, error) {
 	list := applicationapiv1alpha1.SnapshotList{}
 	labels := matchingLabelsPushEventType
 	if len(k.ApplicationName) > 0 {
-		appType, err := k.GetApplicationType()
+		comp, err := k.getComponentForRelease()
 		if err != nil {
 			return nil, err
-		}
-		var comp *applicationapiv1alpha1.Component
-		switch appType {
-		case "operator":
-			comp, err = k.GetBundleComponentForVersion()
-			if err != nil {
-				return nil, err
-			}
-		case "fbc":
-			// Get the first and only component
-			comps, err := k.ListComponents()
-			if err != nil {
-				return nil, err
-			}
-			if len(comps) == 0 {
-				return nil, fmt.Errorf("application %s/%s does not have any component associated", k.Namespace, k.ApplicationName)
-			}
-			if len(comps) > 1 {
-				return nil, fmt.Errorf("application %s/%s of type FBC can only have 1 component per Konflux recommendation ", k.Namespace, k.ApplicationName)
-			}
-			comp = &comps[0]
 		}
 		labels["appstudio.openshift.io/component"] = comp.Name
 	}
@@ -65,12 +53,12 @@ func (k Korn) ListSnapshots() ([]applicationapiv1alpha1.Snapshot, error) {
 }
 
 func (k Korn) GetSnapshotsByVersion() ([]applicationapiv1alpha1.Snapshot, error) {
-	l, err := k.ListSnapshots()
+	semVer, err := semver.ParseTolerant(k.Version)
 	if err != nil {
 		return nil, err
 	}
 	var snapshots []applicationapiv1alpha1.Snapshot
-	semVer, err := semver.ParseTolerant(k.Version)
+	l, err := k.listSnapshots()
 	if err != nil {
 		return nil, err
 	}
@@ -115,37 +103,10 @@ func (k Korn) getVersionForSnapshot(snapshot applicationapiv1alpha1.Snapshot) (*
 	return version, true, nil
 }
 
-func (k Korn) GetSnapshotCandidateForRelease() (*applicationapiv1alpha1.Snapshot, error) {
-	if len(k.SnapshotName) > 0 || len(k.SHA) > 0 {
-		return k.GetSnapshot()
-	}
-	releasesForVersion, err := k.ListSuccessfulReleases()
-	if err != nil {
-		return nil, err
-	}
-	var lastSnapshot *applicationapiv1alpha1.Snapshot
-	if len(releasesForVersion) > 0 {
-		// Copy the last successful snapshot as the cutoff version
-		k.SnapshotName = releasesForVersion[0].Spec.Snapshot
-		lastSnapshot, err = k.GetSnapshot()
-		if err != nil {
-			return nil, err
-		}
-	}
-	var list []applicationapiv1alpha1.Snapshot
-	// If a version is provided, we will filter the snapshots by version
-	if len(k.Version) > 0 {
-		list, err = k.GetSnapshotsByVersion()
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		// Otherwise, we will list all snapshots
-		list, err = k.ListSnapshots()
-		if err != nil {
-			return nil, err
-		}
-	}
+// getComponentForRelease returns the component to use for the release.
+// If the application is of "operator" type, the bundle component type is returned
+// For FBC based applications, which are expected only to contain one component, the default component is returned
+func (k Korn) getComponentForRelease() (*applicationapiv1alpha1.Component, error) {
 	appType, err := k.GetApplicationType()
 	if err != nil {
 		return nil, err
@@ -170,6 +131,42 @@ func (k Korn) GetSnapshotCandidateForRelease() (*applicationapiv1alpha1.Snapshot
 			return nil, fmt.Errorf("application %s/%s of type FBC can only have 1 component per Konflux recommendation ", k.Namespace, k.ApplicationName)
 		}
 		comp = &comps[0]
+	}
+	return comp, nil
+}
+
+func (k Korn) getSnapshotFromLastRelease() (*applicationapiv1alpha1.Snapshot, error) {
+	var lastSnapshot *applicationapiv1alpha1.Snapshot
+	releasesForVersion, err := k.ListSuccessfulReleases()
+	if err != nil {
+		return nil, err
+	}
+	if len(releasesForVersion) > 0 {
+		// Copy the last successful snapshot as the cutoff version
+		k.SnapshotName = releasesForVersion[0].Spec.Snapshot
+		lastSnapshot, err = k.GetSnapshot()
+		if err != nil {
+			return nil, err
+		}
+	}
+	return lastSnapshot, nil
+}
+func (k Korn) GetSnapshotCandidateForRelease() (*applicationapiv1alpha1.Snapshot, error) {
+	if len(k.SnapshotName) > 0 || len(k.SHA) > 0 {
+		return k.GetSnapshot()
+	}
+	lastSnapshot, err := k.getSnapshotFromLastRelease()
+	if err != nil {
+		return nil, err
+	}
+
+	comp, err := k.getComponentForRelease()
+	if err != nil {
+		return nil, err
+	}
+	list, err := k.ListSnapshots()
+	if err != nil {
+		return nil, err
 	}
 	for _, v := range list {
 		if lastSnapshot != nil && v.Name == lastSnapshot.Name {
