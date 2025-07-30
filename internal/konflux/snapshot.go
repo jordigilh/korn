@@ -20,6 +20,15 @@ var (
 )
 
 func (k Korn) ListSnapshots() ([]applicationapiv1alpha1.Snapshot, error) {
+	// If a version is provided, we will filter the snapshots by version
+	if len(k.Version) > 0 {
+		return k.GetSnapshotsByVersion()
+	}
+	// Otherwise, we will list all snapshots
+	return k.listSnapshots()
+}
+
+func (k Korn) listSnapshots() ([]applicationapiv1alpha1.Snapshot, error) {
 	list := applicationapiv1alpha1.SnapshotList{}
 	labels := matchingLabelsPushEventType
 	if len(k.ApplicationName) > 0 {
@@ -44,12 +53,12 @@ func (k Korn) ListSnapshots() ([]applicationapiv1alpha1.Snapshot, error) {
 }
 
 func (k Korn) GetSnapshotsByVersion() ([]applicationapiv1alpha1.Snapshot, error) {
-	l, err := k.ListSnapshots()
+	semVer, err := semver.ParseTolerant(k.Version)
 	if err != nil {
 		return nil, err
 	}
 	var snapshots []applicationapiv1alpha1.Snapshot
-	semVer, err := semver.ParseTolerant(k.Version)
+	l, err := k.listSnapshots()
 	if err != nil {
 		return nil, err
 	}
@@ -126,15 +135,12 @@ func (k Korn) getComponentForRelease() (*applicationapiv1alpha1.Component, error
 	return comp, nil
 }
 
-func (k Korn) GetSnapshotCandidateForRelease() (*applicationapiv1alpha1.Snapshot, error) {
-	if len(k.SnapshotName) > 0 || len(k.SHA) > 0 {
-		return k.GetSnapshot()
-	}
+func (k Korn) getSnapshotFromLastRelease() (*applicationapiv1alpha1.Snapshot, error) {
+	var lastSnapshot *applicationapiv1alpha1.Snapshot
 	releasesForVersion, err := k.ListSuccessfulReleases()
 	if err != nil {
 		return nil, err
 	}
-	var lastSnapshot *applicationapiv1alpha1.Snapshot
 	if len(releasesForVersion) > 0 {
 		// Copy the last successful snapshot as the cutoff version
 		k.SnapshotName = releasesForVersion[0].Spec.Snapshot
@@ -143,21 +149,22 @@ func (k Korn) GetSnapshotCandidateForRelease() (*applicationapiv1alpha1.Snapshot
 			return nil, err
 		}
 	}
-	var list []applicationapiv1alpha1.Snapshot
-	// If a version is provided, we will filter the snapshots by version
-	if len(k.Version) > 0 {
-		list, err = k.GetSnapshotsByVersion()
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		// Otherwise, we will list all snapshots
-		list, err = k.ListSnapshots()
-		if err != nil {
-			return nil, err
-		}
+	return lastSnapshot, nil
+}
+func (k Korn) GetSnapshotCandidateForRelease() (*applicationapiv1alpha1.Snapshot, error) {
+	if len(k.SnapshotName) > 0 || len(k.SHA) > 0 {
+		return k.GetSnapshot()
 	}
+	lastSnapshot, err := k.getSnapshotFromLastRelease()
+	if err != nil {
+		return nil, err
+	}
+
 	comp, err := k.getComponentForRelease()
+	if err != nil {
+		return nil, err
+	}
+	list, err := k.ListSnapshots()
 	if err != nil {
 		return nil, err
 	}
