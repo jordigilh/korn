@@ -1,41 +1,67 @@
+---
 name: Build
 
 on:
   pull_request:
-    branches: [ main ]
+    branches: [main]
   push:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   build:
-    name: Build Binary
-    runs-on: ubuntu-latest
+    name: Build Binary (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - target: linux-amd64
+            runner: ubuntu-latest        # Native AMD64 runner
+          - target: linux-arm64
+            runner: ubuntu-latest-arm64  # Native ARM64 runner
+          - target: darwin-arm64
+            runner: ubuntu-latest-arm64  # ARM64 runner for Darwin
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Install build dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y podman make
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman make
 
-    - name: Build binary
-      env:
-        CGO_ENABLED: 0
-        VERSION: dev-${{ github.sha }}
-      run: |
-        make linux-amd64
+      - name: Build binary
+        env:
+          CGO_ENABLED: 0
+          VERSION: dev-${{ github.sha }}
+        run: |
+          make ${{ matrix.target }}
 
-    - name: Test binary
-      run: |
-        binary_path=$(find output -name "korn_*" | head -1)
-        chmod +x "$binary_path"
-        "$binary_path" --version || echo "Binary built successfully"
-        ls -lh "$binary_path"
+      - name: Test binary
+        run: |
+          # Find the built binary with the specific target pattern
+          # Convert linux-${arch} to linux_${arch} format (hyphen to underscore)
+          target_pattern=$(echo "${{ matrix.target }}" | tr '-' '_')
+          binary_path=$(find output -name \
+            "korn_*_${target_pattern}" | head -1)
+          if [ -n "$binary_path" ]; then
+            chmod +x "$binary_path"
+            ls -lh "$binary_path"
+            echo "✅ Binary built successfully: $binary_path"
+            # Only test version for linux binaries
+            # (can't execute darwin on linux)
+            if [[ "${{ matrix.target }}" == linux-* ]]; then
+              "$binary_path" --version || echo "Version check completed"
+            fi
+          else
+            echo "❌ Error: Binary not found for target ${{ matrix.target }}"
+            echo "Available files in output/:"
+            ls -la output/
+            exit 1
+          fi
 
-    - name: Upload binary
-      uses: actions/upload-artifact@v4
-      with:
-        name: korn-binary
-        path: output/korn_*
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: korn-binary-${{ matrix.target }}
+          path: output/korn_*

@@ -8,11 +8,15 @@ on:
 
 jobs:
   build:
-    name: Build and Release
-    runs-on: ubuntu-latest
+    name: Build and Release (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
-        arch: [amd64, arm64]
+        include:
+          - arch: amd64
+            runner: ubuntu-latest        # Native AMD64 runner
+          - arch: arm64
+            runner: ubuntu-latest-arm64  # Native ARM64 runner
 
     steps:
       - name: Checkout code
