@@ -15,8 +15,10 @@ import (
 )
 
 var (
-	debug   bool
-	version string = "dev" // Set via ldflags during build
+	debug     bool
+	version   string = "dev" // Set via ldflags during build
+	kubepath  string = ""
+	namespace string = ""
 )
 
 func main() {
@@ -33,15 +35,15 @@ func main() {
 		Description:           "korn is an opinionated application that is designed to simplify the release of an operator in Konflux by extracting the arduous tasks that are necessary to ensure the success of a release. The tool requires the konflux manifests that represent the construct of the operator to be labeled accordingly so that the CLI can navigate through its structures",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
-				Name:  "kubeconfig",
-				Usage: "Example: -kubeconfig ~/.kube/config",
-				Value: internal.GetDefaultKubeconfigPath(),
+				Name:        "kubeconfig",
+				Usage:       "Example: -kubeconfig ~/.kube/config",
+				Destination: &kubepath,
 			},
 			&cli.StringFlag{
-				Name:    "namespace",
-				Aliases: []string{"n"},
-				Usage:   "Example: -namespace my-namespace",
-				Value:   internal.GetCurrentNamespace(),
+				Name:        "namespace",
+				Aliases:     []string{"n"},
+				Usage:       "Example: -namespace my-namespace",
+				Destination: &namespace,
 			},
 			&cli.BoolFlag{
 				Name:        "debug",
@@ -63,11 +65,21 @@ func main() {
 			},
 		},
 		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
+			if cmd.Bool("version") {
+				return ctx, nil
+			}
 			if debug {
 				logrus.SetLevel(logrus.DebugLevel)
 				logrus.Debug("Debug mode enabled")
 			} else {
 				logrus.SetLevel(logrus.InfoLevel)
+			}
+
+			if len(kubepath) == 0 {
+				kubepath = internal.GetDefaultKubeconfigPath()
+			}
+			if len(namespace) == 0 {
+				namespace = internal.GetCurrentNamespace()
 			}
 			podClient, err := internal.NewPodmanClient()
 			if err != nil {
