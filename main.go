@@ -63,6 +63,9 @@ func main() {
 			},
 		},
 		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
+			if cmd.Bool("version") {
+				return ctx, nil
+			}
 			if debug {
 				logrus.SetLevel(logrus.DebugLevel)
 				logrus.Debug("Debug mode enabled")
