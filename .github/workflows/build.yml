@@ -9,17 +9,8 @@ on:
 
 jobs:
   build:
-    name: Build Binary (${{ matrix.target }})
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      matrix:
-        include:
-          - target: linux-amd64
-            runner: ubuntu-latest        # Native AMD64 runner
-          - target: linux-arm64
-            runner: ubuntu-latest-arm64  # Native ARM64 runner
-          - target: darwin-arm64
-            runner: ubuntu-latest-arm64  # ARM64 runner for Darwin
+    name: Build Binary
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
@@ -35,26 +26,19 @@ jobs:
           CGO_ENABLED: 0
           VERSION: dev-${{ github.sha }}
         run: |
-          make ${{ matrix.target }}
+          make linux-amd64
 
       - name: Test binary
         run: |
-          # Find the built binary with the specific target pattern
-          # Convert linux-${arch} to linux_${arch} format (hyphen to underscore)
-          target_pattern=$(echo "${{ matrix.target }}" | tr '-' '_')
-          binary_path=$(find output -name \
-            "korn_*_${target_pattern}" | head -1)
+          # Find the built binary (linux_amd64 pattern)
+          binary_path=$(find output -name "korn_*_linux_amd64" | head -1)
           if [ -n "$binary_path" ]; then
             chmod +x "$binary_path"
             ls -lh "$binary_path"
             echo "✅ Binary built successfully: $binary_path"
-            # Only test version for linux binaries
-            # (can't execute darwin on linux)
-            if [[ "${{ matrix.target }}" == linux-* ]]; then
-              "$binary_path" --version || echo "Version check completed"
-            fi
+            "$binary_path" --version || echo "Version check completed"
           else
-            echo "❌ Error: Binary not found for target ${{ matrix.target }}"
+            echo "❌ Error: Binary not found for linux-amd64"
             echo "Available files in output/:"
             ls -la output/
             exit 1
@@ -63,5 +47,5 @@ jobs:
       - name: Upload binary
         uses: actions/upload-artifact@v4
         with:
-          name: korn-binary-${{ matrix.target }}
+          name: korn-binary
           path: output/korn_*
