@@ -17,8 +17,8 @@ import (
 var (
 	debug     bool
 	version   string = "dev" // Set via ldflags during build
-	kubepath  string = ""
-	namespace string = ""
+	kubepath  string = "~/.kube/config"
+	namespace string = "default"
 )
 
 func main() {
@@ -38,12 +38,14 @@ func main() {
 				Name:        "kubeconfig",
 				Usage:       "Example: -kubeconfig ~/.kube/config",
 				Destination: &kubepath,
+				Value:       kubepath,
 			},
 			&cli.StringFlag{
 				Name:        "namespace",
 				Aliases:     []string{"n"},
 				Usage:       "Example: -namespace my-namespace",
 				Destination: &namespace,
+				Value:       namespace,
 			},
 			&cli.BoolFlag{
 				Name:        "debug",
